@@ -1,0 +1,157 @@
+@import "tailwindcss";
+
+/* Modern Typography */
+@layer base {
+  :root {
+    --bg-main: #0a0a0c;
+    --bg-card: rgba(23, 23, 28, 0.75);
+    --bg-card-hover: rgba(28, 28, 35, 0.9);
+    --border-color: rgba(255, 255, 255, 0.08);
+    --border-accent: rgba(249, 115, 22, 0.35);
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --text-secondary: #cbd5e1;
+
+    /* Ginger Amber Default */
+    --accent-primary: #f97316;
+    --accent-hover: #ea580c;
+    --accent-glow-bg: rgba(249, 115, 22, 0.15);
+    --accent-glow-color: rgba(249, 115, 22, 0.35);
+    --accent-gradient-start: #fb923c;
+    --accent-gradient-mid: #f97316;
+    --accent-gradient-end: #ea580c;
+  }
+
+  /* Light Theme Overrides */
+  .theme-light {
+    --bg-main: #f8fafc;
+    --bg-card: rgba(255, 255, 255, 0.85);
+    --bg-card-hover: rgba(255, 255, 255, 1);
+    --border-color: rgba(0, 0, 0, 0.08);
+    --border-accent: rgba(249, 115, 22, 0.4);
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --text-secondary: #334155;
+  }
+
+  /* Palettes */
+  /* 1. Ginger Amber */
+  .color-ginger {
+    --accent-primary: #f97316;
+    --accent-hover: #ea580c;
+    --accent-glow-bg: rgba(249, 115, 22, 0.15);
+    --accent-glow-color: rgba(249, 115, 22, 0.35);
+    --accent-gradient-start: #fdba74;
+    --accent-gradient-mid: #f97316;
+    --accent-gradient-end: #ea580c;
+  }
+
+  /* 2. Emerald Cyber */
+  .color-emerald {
+    --accent-primary: #10b981;
+    --accent-hover: #059669;
+    --accent-glow-bg: rgba(16, 185, 129, 0.15);
+    --accent-glow-color: rgba(16, 185, 129, 0.35);
+    --accent-gradient-start: #6ee7b7;
+    --accent-gradient-mid: #10b981;
+    --accent-gradient-end: #059669;
+  }
+
+  /* 3. Sapphire Indigo */
+  .color-sapphire {
+    --accent-primary: #6366f1;
+    --accent-hover: #4f46e5;
+    --accent-glow-bg: rgba(99, 102, 241, 0.15);
+    --accent-glow-color: rgba(99, 102, 241, 0.35);
+    --accent-gradient-start: #a5b4fc;
+    --accent-gradient-mid: #6366f1;
+    --accent-gradient-end: #4f46e5;
+  }
+
+  /* 4. Purple Amethyst */
+  .color-amethyst {
+    --accent-primary: #a855f7;
+    --accent-hover: #9333ea;
+    --accent-glow-bg: rgba(168, 85, 247, 0.15);
+    --accent-glow-color: rgba(168, 85, 247, 0.35);
+    --accent-gradient-start: #d8b4fe;
+    --accent-gradient-mid: #a855f7;
+    --accent-gradient-end: #9333ea;
+  }
+
+  /* 5. Ruby Rose */
+  .color-ruby {
+    --accent-primary: #f43f5e;
+    --accent-hover: #e11d48;
+    --accent-glow-bg: rgba(244, 63, 94, 0.15);
+    --accent-glow-color: rgba(244, 63, 94, 0.35);
+    --accent-gradient-start: #fda4af;
+    --accent-gradient-mid: #f43f5e;
+    --accent-gradient-end: #e11d48;
+  }
+
+  /* 6. Titanium Silver */
+  .color-titanium {
+    --accent-primary: #94a3b8;
+    --accent-hover: #64748b;
+    --accent-glow-bg: rgba(148, 163, 184, 0.15);
+    --accent-glow-color: rgba(148, 163, 184, 0.35);
+    --accent-gradient-start: #e2e8f0;
+    --accent-gradient-mid: #94a3b8;
+    --accent-gradient-end: #64748b;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--accent-glow-color);
+  border-radius: 9999px;
+}
+
+/* App Regions */
+.app-drag {
+  -webkit-app-region: drag;
+}
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* UI Elements */
+.glass-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border-color);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-accent);
+}
+
+.accent-btn {
+  background: linear-gradient(135deg, var(--accent-gradient-mid) 0%, var(--accent-gradient-end) 100%);
+  box-shadow: 0 4px 16px -2px var(--accent-glow-color);
+}
+.accent-btn:hover {
+  background: linear-gradient(135deg, var(--accent-gradient-start) 0%, var(--accent-gradient-mid) 100%);
+  box-shadow: 0 6px 20px 0 var(--accent-glow-color);
+}
+
+.giga-glow {
+  filter: drop-shadow(0 0 12px var(--accent-glow-color));
+}

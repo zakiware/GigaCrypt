@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+dist-exe/
+release/
+build/
+*.blockmap
+GigaCrypt.exe
+
+# Large binary installer dependency
+installer/vc_redist.x64.exe
+
+# QA and temporary test directories
+qa_temp_*
+qa_comprehensive_suite.js
+qa_shred_probe.tmp
+*.log
+
+# Environment and IDE
+.env
+.env.local
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Operating System files
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
