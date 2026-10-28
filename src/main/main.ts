@@ -5,14 +5,13 @@ import { CryptoEngine } from './crypto/cryptoEngine';
 import { WindowsRegistry } from './windows/registry';
 import { AppSettings, CryptoItem, DecryptOptions, EncryptOptions, ItemInfo, NotEncryptedNotice, TempViewInfo, UnlockRequest, UpdateInfo } from '../types';
 
-const CURRENT_VERSION = '1.0.0';
+const CURRENT_VERSION = '1.0.1';
 const GITHUB_REPO = 'zakiware/GigaCrypt';
 
 // Ensure autoplay with audio works for intro.mp4 video splash screen
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 let mainWindow: BrowserWindow | null = null;
-let quickLockWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let pendingTarget: { action: 'open' | 'encrypt'; targetPath: string; alreadyLockedWarning?: boolean } | null = null;
@@ -406,63 +405,6 @@ function setupTray() {
   });
 }
 
-/**
- * Floating Quick-Lock Bar (Mini Lock HUD)
- */
-function showQuickLockBar() {
-  if (quickLockWindow && !quickLockWindow.isDestroyed()) {
-    quickLockWindow.show();
-    return;
-  }
-
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width } = primaryDisplay.workAreaSize;
-
-  quickLockWindow = new BrowserWindow({
-    width: 360,
-    height: 56,
-    x: width - 380,
-    y: 28,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: false,
-    hasShadow: false,
-    backgroundColor: '#00000000',
-    webPreferences: {
-      preload: path.join(__dirname, '../preload/preload.js'),
-      nodeIntegration: false,
-      contextIsolation: true,
-    },
-  });
-
-  const quickLockHtml = path.join(__dirname, 'quickLock.html');
-  quickLockWindow.loadFile(quickLockHtml);
-
-  quickLockWindow.webContents.on('did-finish-load', () => {
-    const sessions = Array.from(activeUnlockedSessions.keys());
-    const tempViews: TempViewInfo[] = Array.from(activeTempViews.values()).map((v) => ({
-      tempDir: v.tempDir,
-      originalPath: v.originalPath,
-      name: v.name,
-    }));
-    quickLockWindow?.webContents.send('active-sessions-changed', sessions);
-    quickLockWindow?.webContents.send('active-temp-views-changed', tempViews);
-  });
-
-  quickLockWindow.on('closed', () => {
-    quickLockWindow = null;
-  });
-}
-
-function hideQuickLockBar() {
-  if (quickLockWindow && !quickLockWindow.isDestroyed()) {
-    quickLockWindow.close();
-    quickLockWindow = null;
-  }
-}
-
 function notifySessionsChanged() {
   updateTrayMenu();
   const sessions = Array.from(activeUnlockedSessions.keys());
@@ -474,17 +416,6 @@ function notifySessionsChanged() {
 
   mainWindow?.webContents.send('active-sessions-changed', sessions);
   mainWindow?.webContents.send('active-temp-views-changed', tempViews);
-
-  if (quickLockWindow && !quickLockWindow.isDestroyed()) {
-    quickLockWindow.webContents.send('active-sessions-changed', sessions);
-    quickLockWindow.webContents.send('active-temp-views-changed', tempViews);
-  }
-
-  if (sessions.length > 0 || tempViews.length > 0) {
-    showQuickLockBar();
-  } else {
-    hideQuickLockBar();
-  }
 }
 
 /**
@@ -520,13 +451,16 @@ async function closeTempViewSession(tempDir: string): Promise<boolean> {
   const session = activeTempViews.get(tempDir);
   if (!session) return false;
 
+  // 1. Instantly unregister and notify the UI so the row vanishes with 0ms perceived lag
+  activeTempViews.delete(tempDir);
+  notifySessionsChanged();
+
+  // 2. Perform fast non-blocking background cleanup of the temporary sandbox directory
   try {
-    await CryptoEngine.wipePath(tempDir);
-    activeTempViews.delete(tempDir);
-    notifySessionsChanged();
+    await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
     return true;
   } catch (err) {
-    console.error('Failed to close temp view:', err);
+    console.error('Failed to close temp view directory:', err);
     return false;
   }
 }
@@ -699,7 +633,6 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', async () => {
   isQuitting = true;
-  hideQuickLockBar();
   // Automatically re-lock all open folders and close temp views before quitting!
   await relockAllSessions();
 });
@@ -1014,6 +947,7 @@ ipcMain.handle('check-for-updates', async (): Promise<UpdateInfo> => {
 
     return {
       available: isNewer,
+      hasUpdate: isNewer,
       currentVersion: CURRENT_VERSION,
       latestVersion: remoteTag.replace(/^v/i, ''),
       releaseName: data.name || remoteTag,
@@ -1025,11 +959,82 @@ ipcMain.handle('check-for-updates', async (): Promise<UpdateInfo> => {
     console.warn('Update check notice:', err.message);
     return {
       available: false,
+      hasUpdate: false,
       currentVersion: CURRENT_VERSION,
       latestVersion: CURRENT_VERSION,
-      releaseName: 'v1.0.0',
+      releaseName: 'v' + CURRENT_VERSION,
       error: err.message,
     };
+  }
+});
+
+ipcMain.handle('download-update', async (event, downloadUrl: string) => {
+  try {
+    if (!downloadUrl || !downloadUrl.startsWith('http')) {
+      throw new Error('Некорректная ссылка на файл обновления');
+    }
+
+    const res = await fetch(downloadUrl, {
+      headers: { 'User-Agent': `GigaCrypt-App/${CURRENT_VERSION}` },
+      redirect: 'follow',
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+
+    const totalBytes = Number(res.headers.get('content-length')) || 0;
+    let urlFileName = 'GigaCrypt-Setup.exe';
+    try {
+      urlFileName = path.basename(new URL(downloadUrl).pathname) || 'GigaCrypt-Setup.exe';
+    } catch {}
+    const destPath = path.join(app.getPath('temp'), `GigaCrypt-Update-${Date.now()}-${urlFileName}`);
+    const fileStream = fs.createWriteStream(destPath);
+
+    if (!res.body) throw new Error('Отсутствует поток данных для загрузки');
+    const reader = res.body.getReader();
+    let receivedBytes = 0;
+    let lastReport = Date.now();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      fileStream.write(Buffer.from(value));
+      receivedBytes += value.length;
+      const now = Date.now();
+      if (now - lastReport > 60 || (totalBytes > 0 && receivedBytes >= totalBytes)) {
+        lastReport = now;
+        const percent = totalBytes > 0 ? Math.min(100, Math.round((receivedBytes / totalBytes) * 100)) : 0;
+        event.sender.send('update-download-progress', { percent, receivedBytes, totalBytes });
+      }
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      fileStream.end((err?: any) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    return { success: true, filePath: destPath };
+  } catch (err: any) {
+    console.error('Update download error:', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('install-update', async (_event, installerPath: string) => {
+  try {
+    if (!fs.existsSync(installerPath)) {
+      throw new Error('Файл установщика не найден');
+    }
+    const { spawn } = require('child_process');
+    const child = spawn(installerPath, [], { detached: true, stdio: 'ignore' });
+    child.unref();
+    setTimeout(() => {
+      app.quit();
+    }, 400);
+    return true;
+  } catch (err: any) {
+    console.error('Update installer launch failed:', err);
+    return false;
   }
 });
 

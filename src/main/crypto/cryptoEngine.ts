@@ -210,9 +210,27 @@ export class CryptoEngine {
     await new Promise<void>((resolve, reject) => {
       payloadCipher.pipe(outStream, { end: false });
 
-      const archive = createZipArchive({ zlib: { level: 6 } });
+      // Fast streaming compression (level 1 for maximum speed and throughput)
+      const archive = createZipArchive({ zlib: { level: 1 } });
       archive.on('error', reject);
       payloadCipher.on('error', reject);
+
+      let lastReport = 0;
+      archive.on('progress', (data: any) => {
+        const now = Date.now();
+        if (now - lastReport > 60) {
+          lastReport = now;
+          const processed = (data && data.fs && data.fs.processedBytes) || 0;
+          const total = stats.size || 1;
+          const ratio = Math.min(1, Math.max(0, processed / total));
+          const pct = Math.min(85, Math.floor(25 + ratio * 60));
+          options.onProgress?.({
+            stage: 'encrypting',
+            percent: pct,
+            message: `Шифрование данных... ${pct}%`,
+          });
+        }
+      });
 
       archive.pipe(payloadCipher);
 
@@ -242,17 +260,17 @@ export class CryptoEngine {
       });
     });
 
-    // 6. Shred and remove original unencrypted files
+    // 6. Rapidly and cleanly remove original unencrypted files
     options.onProgress?.({
       stage: 'wiping',
       percent: 90,
-      message: 'Безопасное удаление открытых файлов...',
+      message: 'Очистка исходных файлов...',
     });
 
     const entries = await fs.promises.readdir(rawPath);
     for (const entry of entries) {
       if (entry === '.gigavault' || entry.toLowerCase() === 'desktop.ini') continue;
-      await this.wipePath(path.join(rawPath, entry));
+      await fs.promises.rm(path.join(rawPath, entry), { recursive: true, force: true }).catch(() => {});
     }
 
     options.onProgress?.({
@@ -313,9 +331,9 @@ export class CryptoEngine {
 
     if (!vaultDeleted && fs.existsSync(vaultPath)) {
       try {
-        await this.wipePath(vaultPath);
+        await fs.promises.rm(vaultPath, { force: true }).catch(() => {});
       } catch (err) {
-        console.error('Failed to wipe .gigavault file:', err);
+        console.error('Failed to unlink .gigavault file:', err);
       }
     }
 
@@ -367,6 +385,7 @@ export class CryptoEngine {
     let payloadIv: Buffer;
     let payloadTag: Buffer;
     let payloadOffset: number;
+    let key: Buffer;
 
     try {
       const footerBuf = Buffer.alloc(TAG_LEN + MAGIC_FOOTER.length);
@@ -394,7 +413,7 @@ export class CryptoEngine {
       await fd.read(payloadIvBuf, 0, IV_LEN, headerBuf.length + metaLen);
       payloadIv = payloadIvBuf;
 
-      const key = this.deriveKey(password, salt);
+      key = this.deriveKey(password, salt);
       const metaDecipher = crypto.createDecipheriv('aes-256-gcm', key, metaIv);
       metaDecipher.setAuthTag(metaTag);
 
@@ -408,11 +427,10 @@ export class CryptoEngine {
 
     onProgress?.({
       stage: 'decrypting',
-      percent: 35,
-      message: 'Восстановление содержимого...',
+      percent: 20,
+      message: 'Распаковка и проверка целостности...',
     });
 
-    const key = this.deriveKey(password, salt);
     const payloadLength = fileSize - payloadOffset - (TAG_LEN + MAGIC_FOOTER.length);
 
     const decipher = crypto.createDecipheriv('aes-256-gcm', key, payloadIv);
@@ -426,6 +444,23 @@ export class CryptoEngine {
     const inStream = fs.createReadStream(vaultPath, {
       start: payloadOffset,
       end: payloadOffset + payloadLength - 1,
+    });
+
+    let bytesRead = 0;
+    let lastReport = 0;
+    inStream.on('data', (chunk: Buffer) => {
+      bytesRead += chunk.length;
+      const now = Date.now();
+      if (now - lastReport > 60) {
+        lastReport = now;
+        const ratio = Math.min(1, Math.max(0, bytesRead / (payloadLength || 1)));
+        const pct = Math.min(95, Math.floor(20 + ratio * 75));
+        onProgress?.({
+          stage: 'decrypting',
+          percent: pct,
+          message: `Восстановление файлов... ${pct}%`,
+        });
+      }
     });
 
     const extractor = unzipper.Extract({ path: destDir });
@@ -548,6 +583,24 @@ export class CryptoEngine {
       const fileStream = fs.createReadStream(sourcePath);
       fileStream.on('error', reject);
       payloadCipher.on('error', reject);
+
+      let bytesRead = 0;
+      let lastReport = 0;
+      fileStream.on('data', (chunk: Buffer) => {
+        bytesRead += chunk.length;
+        const now = Date.now();
+        if (now - lastReport > 60) {
+          lastReport = now;
+          const ratio = Math.min(1, Math.max(0, bytesRead / (stats.size || 1)));
+          const pct = Math.min(90, Math.floor(25 + ratio * 65));
+          options.onProgress?.({
+            stage: 'encrypting',
+            percent: pct,
+            message: `Шифрование... ${pct}%`,
+          });
+        }
+      });
+
       fileStream.pipe(payloadCipher);
       payloadCipher.on('end', () => resolve());
     });
@@ -564,10 +617,10 @@ export class CryptoEngine {
     if (options.wipeOriginal !== false) {
       options.onProgress?.({
         stage: 'wiping',
-        percent: 90,
+        percent: 92,
         message: 'Удаление оригинала...',
       });
-      await this.wipePath(sourcePath);
+      await fs.promises.unlink(sourcePath).catch(() => this.wipePath(sourcePath));
     }
 
     options.onProgress?.({
@@ -606,6 +659,7 @@ export class CryptoEngine {
     let payloadTag: Buffer;
     let payloadOffset: number;
     let metadata: EncryptedMetadata;
+    let key: Buffer;
 
     try {
       const footerBuf = Buffer.alloc(TAG_LEN + MAGIC_FOOTER.length);
@@ -633,7 +687,7 @@ export class CryptoEngine {
       await fd.read(payloadIvBuf, 0, IV_LEN, headerBuf.length + metaLen);
       payloadIv = payloadIvBuf;
 
-      const key = this.deriveKey(password, salt);
+      key = this.deriveKey(password, salt);
       const metaDecipher = crypto.createDecipheriv('aes-256-gcm', key, metaIv);
       metaDecipher.setAuthTag(metaTag);
 
@@ -655,7 +709,6 @@ export class CryptoEngine {
       outputPath = path.join(destDir, `${base}_restored${ext}`);
     }
 
-    const key = this.deriveKey(password, salt);
     const payloadLength = statSize - payloadOffset - (TAG_LEN + MAGIC_FOOTER.length);
 
     const decipher = crypto.createDecipheriv('aes-256-gcm', key, payloadIv);
@@ -670,6 +723,23 @@ export class CryptoEngine {
         end: payloadOffset + payloadLength - 1,
       });
       const outStream = fs.createWriteStream(outputPath);
+
+      let bytesRead = 0;
+      let lastReport = 0;
+      inStream.on('data', (chunk: Buffer) => {
+        bytesRead += chunk.length;
+        const now = Date.now();
+        if (now - lastReport > 60) {
+          lastReport = now;
+          const ratio = Math.min(1, Math.max(0, bytesRead / (payloadLength || 1)));
+          const pct = Math.min(95, Math.floor(15 + ratio * 80));
+          options.onProgress?.({
+            stage: 'decrypting',
+            percent: pct,
+            message: `Расшифровка... ${pct}%`,
+          });
+        }
+      });
 
       await new Promise<void>((resolve, reject) => {
         inStream

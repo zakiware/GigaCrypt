@@ -4,6 +4,11 @@ const https = require('https');
 const { execSync } = require('child_process');
 
 async function main() {
+  const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf-8'));
+  const version = pkg.version || '1.0.1';
+  const tag = `v${version}`;
+
+  console.log(`Starting publication workflow for GigaCrypt ${tag}...`);
   console.log('Retrieving GitHub credentials from Git Credential Manager...');
   const credOutput = execSync('git credential fill', { input: 'protocol=https\nhost=github.com\n' }).toString();
   const token = credOutput.match(/password=(.+)/)?.[1]?.trim();
@@ -11,7 +16,8 @@ async function main() {
     throw new Error('Failed to retrieve GitHub token');
   }
 
-  const installerPath = path.resolve(__dirname, '../release/GigaCrypt-Setup-1.0.0.exe');
+  const installerName = `GigaCrypt-Setup-${version}.exe`;
+  const installerPath = path.resolve(__dirname, `../release/${installerName}`);
   if (!fs.existsSync(installerPath)) {
     throw new Error('Installer not found at: ' + installerPath);
   }
@@ -19,31 +25,44 @@ async function main() {
   const stats = fs.statSync(installerPath);
   console.log(`Found installer: ${installerPath} (${(stats.size / (1024 * 1024)).toFixed(2)} MB)`);
 
-  const releaseNotes = `## 🦊 GigaCrypt v1.0.0 — Official Production Release
+  const releaseNotes = `## 🦊 GigaCrypt v${version} — Редизайн интерфейса и оптимизация производительности
 
-Добро пожаловать в первый официальный релиз **GigaCrypt** — мощного инструмента для защиты файлов и папок на Windows с бескомпромиссным уровнем безопасности и теплым янтарно-имбирным стилем!
-
----
-
-### ✨ Что нового в версии 1.0.0:
-* 🔒 **Военный уровень шифрования**: Аутентифицированный шифр **AES-256-GCM** с 128-битным тегом подлинности и деривацией ключа **PBKDF2-SHA512** (100 000 итераций, 32-байтовая криптографическая соль).
-* ⚡ **Мгновенная блокировка папок на месте (Zero-Copy)**: Никакого медленного копирования гигабайтов — шифрование прямо в исходном каталоге.
-* 👁 **Изолированный временный просмотр**: Безопасная временная распаковка в защищенную песочницу без модификации заблокированного оригинала.
-* 🧹 **100% чистая дешифрация**: Никаких остаточных мусорных файлов или .gigavault после разблокировки.
-* 🎬 **Кинематографичный запуск**: Видео-интро высокого разрешения при старте программы.
-* 🛡 **Криптографический шредер**: Безвозвратное затирание исходных файлов случайными байтами.
-* 🖱 **Глубокая интеграция с Windows Explorer**: Контекстное меню по клику правой кнопкой мыши и ассоциация формата \`.gcrypt\`.
-* 🔄 **Автообновление через GitHub**: Автоматическая фоновая проверка релизов и уведомление о выходе обновлений.
-* 📦 **Автономный установщик (All-in-One)**: В установщик встроен пакет **Microsoft Visual C++ 2015-2022 Redistributable (x64)** с автоматической тихой установкой при отсутствии в системе.
+Рады представить плановое обновление **GigaCrypt v${version}**! В этой версии проведен масштабный редизайн десктопного интерфейса, повышена скорость криптографических операций, ускорен отклик системы и добавлена загрузка и установка обновлений прямо в окне программы.
 
 ---
 
-### 📥 Установка:
-1. Скачайте файл **\`GigaCrypt-Setup-1.0.0.exe\`** ниже.
-2. Запустите установку. Мастер установки сделает всё необходимое.
-3. Программа готова к мгновенной защите ваших данных!`;
+### 🎨 Что нового в интерфейсе:
+* **Современная компоновка Workbench**: Программа перешла на эргономичную структуру с боковой панелью навигации (Sidebar) и центральной рабочей областью (Workbench Canvas).
+* **Быстрые фильтры и поиск**: Мгновенный доступ ко всем объектам, защищенным папкам, одиночным файлам и активным песочницам временного просмотра, а также моментальный поиск по реестру.
+* **Табличный реестр хранилищ (Vault Ledger)**: Четкая, структурированная таблица заблокированных объектов с подробной информацией о типе, расположении и дате защиты.
+* **Обновленная типографика и контраст**: Тщательно подобранная цветовая палитра, гармоничные акценты фирменного янтарно-имбирного цвета, аккуратные скругления и оптимизированные кнопки управления окном.
 
-  console.log('Creating GitHub Release v1.0.0...');
+---
+
+### ⚡ Производительность и криптография:
+* **Ускоренная зашифровка и расшифровка**: Оптимизированы алгоритмы упаковки и потоковой передачи данных при шифровании директорий на месте (In-Place Folder Locking).
+* **Плавный потоковый отсчет прогресса**: Добавлено динамическое отслеживание прогресса в реальном времени для всех типов операций (файлы, папки, песочница). Проценты плавно и точно отражают фактический объем обработанных байтов.
+* **Оптимизация деривации ключа**: Устранено избыточное повторное вычисление ключа при операциях доступа, снижена задержка перед стартом расшифровки.
+* **Быстрое освобождение ресурсов**: Очистка оригиналов и временных директорий переведена на неблокирующие асинхронные методы удаления без длительных системных задержек.
+
+---
+
+### 👁 Сессии временного просмотра:
+* **Мгновенное завершение сессий**: Кнопка «Завершить» в реестре временного просмотра теперь реагирует моментально (< 16 мс) — сессия сразу снимается с учета, а очистка файлов песочницы выполняется в фоновом режиме.
+
+---
+
+### 🔄 Система автообновления:
+* **Загрузка и установка прямо в программе**: Добавлена возможность скачать новую версию и запустить процесс обновления в один клик прямо из окна приложения с отображением прогресса загрузки в мегабайтах и процентах.
+
+---
+
+### 📦 Установка:
+1. Скачайте инсталлятор **\`${installerName}\`** ниже.
+2. Запустите установку. При необходимости инсталлятор автоматически настроит требуемые компоненты среды Microsoft Visual C++.
+3. Приложение готово к работе!`;
+
+  console.log(`Creating GitHub Release ${tag}...`);
   const createReleaseRes = await fetch('https://api.github.com/repos/zakiware/GigaCrypt/releases', {
     method: 'POST',
     headers: {
@@ -53,9 +72,9 @@ async function main() {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      tag_name: 'v1.0.0',
+      tag_name: tag,
       target_commitish: 'main',
-      name: 'GigaCrypt v1.0.0 — Official Production Release',
+      name: `GigaCrypt v${version} — Редизайн интерфейса и оптимизация производительности`,
       body: releaseNotes,
       draft: false,
       prerelease: false
@@ -65,8 +84,8 @@ async function main() {
   const releaseData = await createReleaseRes.json();
   if (!createReleaseRes.ok) {
     if (releaseData.errors && releaseData.errors.some(e => e.code === 'already_exists')) {
-      console.log('Release already exists, fetching existing release...');
-      const getRes = await fetch('https://api.github.com/repos/zakiware/GigaCrypt/releases/tags/v1.0.0', {
+      console.log('Release already exists, fetching existing release info...');
+      const getRes = await fetch(`https://api.github.com/repos/zakiware/GigaCrypt/releases/tags/${tag}`, {
         headers: {
           'Authorization': 'token ' + token,
           'User-Agent': 'GigaCrypt-Publisher',
@@ -79,11 +98,11 @@ async function main() {
     }
   }
 
-  console.log(`Release created/verified at: ${releaseData.html_url}`);
+  console.log(`Release verified at: ${releaseData.html_url}`);
   const uploadUrlTemplate = releaseData.upload_url;
-  const uploadUrl = uploadUrlTemplate.replace('{?name,label}', `?name=GigaCrypt-Setup-1.0.0.exe`);
+  const uploadUrl = uploadUrlTemplate.replace('{?name,label}', `?name=${installerName}`);
 
-  console.log(`Uploading installer asset (${(stats.size / (1024 * 1024)).toFixed(2)} MB)... This may take 30-60 seconds.`);
+  console.log(`Uploading installer asset (${(stats.size / (1024 * 1024)).toFixed(2)} MB)...`);
 
   const urlObj = new URL(uploadUrl);
   await new Promise((resolve, reject) => {
@@ -129,7 +148,7 @@ async function main() {
     fileStream.pipe(req);
   });
 
-  console.log('🎉 Release v1.0.0 published and installer attached successfully!');
+  console.log(`\n🎉 Release ${tag} published and ${installerName} attached successfully!`);
   console.log('URL: ' + releaseData.html_url);
 }
 

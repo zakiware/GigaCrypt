@@ -1,17 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { TitleBar } from './components/TitleBar';
-import { WelcomeHeader } from './components/WelcomeHeader';
-import { DropZone } from './components/DropZone';
-import { VaultList } from './components/VaultList';
+import { Sidebar, NavFilter } from './components/Sidebar';
+import { WorkbenchToolbar } from './components/WorkbenchToolbar';
+import { VaultLedger } from './components/VaultLedger';
+import { DragOverlay } from './components/DragOverlay';
 import { EncryptModal } from './components/EncryptModal';
 import { UnlockModal } from './components/UnlockModal';
 import { SettingsModal } from './components/SettingsModal';
 import { NotEncryptedModal } from './components/NotEncryptedModal';
 import { SplashScreen } from './components/SplashScreen';
-import { VersionBadge } from './components/VersionBadge';
 import { UpdateModal } from './components/UpdateModal';
 import { Lock, CheckCircle2, Eye, X, AlertCircle } from 'lucide-react';
-import { AppSettings, CryptoItem, ItemInfo, NotEncryptedNotice, TempViewInfo, UnlockRequest, UpdateInfo } from '../types';
+import {
+  AppSettings,
+  CryptoItem,
+  ItemInfo,
+  NotEncryptedNotice,
+  TempViewInfo,
+  UnlockRequest,
+  UpdateInfo,
+} from '../types';
 
 export const App: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings>({
@@ -33,13 +41,17 @@ export const App: React.FC = () => {
   const [notEncryptedNotice, setNotEncryptedNotice] = useState<NotEncryptedNotice | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
-  const [mainMode, setMainMode] = useState<'encrypt' | 'decrypt'>('encrypt');
   const [isMaximized, setIsMaximized] = useState(false);
-  const [appVersion, setAppVersion] = useState('1.0.0');
+  const [appVersion, setAppVersion] = useState('1.0.1');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [updateToast, setUpdateToast] = useState<{ message: string; isError?: boolean } | null>(null);
+
+  // Desktop Navigation & Filtering
+  const [currentFilter, setCurrentFilter] = useState<NavFilter>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
 
   const loadInitialData = async () => {
     try {
@@ -101,17 +113,15 @@ export const App: React.FC = () => {
       if (v) setAppVersion(v);
     }).catch(() => {});
 
-    // Silent background check for updates after splash/intro has settled (3.5s)
+    // Silent background check for updates after 3.5s
     const updateTimer = setTimeout(async () => {
       try {
         const res = await window.electronAPI.checkForUpdates();
-        if (res && res.hasUpdate) {
+        if (res && (res.available || res.hasUpdate)) {
           setUpdateInfo(res);
           setShowUpdateModal(true);
         }
-      } catch {
-        // Silent catch on automatic startup check
-      }
+      } catch {}
     }, 3500);
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -143,8 +153,7 @@ export const App: React.FC = () => {
   const themeClass = isDark ? 'theme-dark' : 'theme-light';
   const colorClass = `color-${settings.accentColor || 'ginger'}`;
 
-  const handleSelectFile = async () => {
-    const isDecrypt = mainMode === 'decrypt';
+  const handleSelectFile = async (isDecrypt: boolean = false) => {
     const filePath = await window.electronAPI.selectFile(isDecrypt);
     if (filePath) handleItemPath(filePath);
   };
@@ -160,19 +169,8 @@ export const App: React.FC = () => {
 
     const isLocked = info.isGcrypt || info.isLockedFolder;
 
-    if (mainMode === 'decrypt') {
-      if (!isLocked) {
-        // Strict: Decrypt mode only works on encrypted objects!
-        setNotEncryptedNotice({
-          name: info.name,
-          path: info.path,
-          type: info.type,
-        });
-        setUnlockRequest(null);
-        setSelectedItemForEncrypt(null);
-        return;
-      }
-
+    if (isLocked) {
+      // Direct unlock flow
       setUnlockRequest({
         filePath: info.path,
         fileName: info.name,
@@ -184,22 +182,7 @@ export const App: React.FC = () => {
       setSelectedItemForEncrypt(null);
       setNotEncryptedNotice(null);
     } else {
-      // Encrypt mode
-      if (info.isLockedFolder || info.isGcrypt) {
-        setUnlockRequest({
-          filePath: info.path,
-          fileName: info.name,
-          type: info.type,
-          size: info.size,
-          hint: info.hint,
-          isLockedFolder: info.isLockedFolder,
-          alreadyLockedWarning: true,
-        });
-        setSelectedItemForEncrypt(null);
-        setNotEncryptedNotice(null);
-        return;
-      }
-
+      // Encrypt flow
       setSelectedItemForEncrypt(info);
       setUnlockRequest(null);
       setNotEncryptedNotice(null);
@@ -227,6 +210,10 @@ export const App: React.FC = () => {
     });
   };
 
+  const handleRevealPath = (targetPath: string) => {
+    window.electronAPI.openInExplorer(targetPath);
+  };
+
   const handleRelockSession = async (folderPath: string) => {
     await window.electronAPI.relockFolder(folderPath);
     loadInitialData();
@@ -251,16 +238,16 @@ export const App: React.FC = () => {
     setIsCheckingUpdate(true);
     try {
       const res = await window.electronAPI.checkForUpdates();
-      if (res && res.hasUpdate) {
+      if (res && (res.available || res.hasUpdate)) {
         setUpdateInfo(res);
         setShowUpdateModal(true);
       } else {
         setUpdateToast({ message: `У вас последняя версия (v${appVersion})` });
-        setTimeout(() => setUpdateToast(null), 3500);
+        setTimeout(() => setUpdateToast(null), 3000);
       }
     } catch {
       setUpdateToast({ message: 'Не удалось проверить обновления', isError: true });
-      setTimeout(() => setUpdateToast(null), 3500);
+      setTimeout(() => setUpdateToast(null), 3000);
     } finally {
       setIsCheckingUpdate(false);
     }
@@ -271,99 +258,161 @@ export const App: React.FC = () => {
     setShowUpdateModal(false);
   };
 
+  // Full-window drag & drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDraggingOver) setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget === e.target) {
+      setIsDraggingOver(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      const filePath = (file as any).path || file.name;
+      if (filePath) {
+        handleItemPath(filePath);
+      }
+    }
+  };
+
+  const folderCount = vaultHistory.filter((i) => i.isInPlaceFolder || i.type === 'folder').length;
+  const fileCount = vaultHistory.length - folderCount;
+
   return (
-    <div className={`flex flex-col h-screen w-screen bg-[var(--bg-main)] text-[var(--text-main)] overflow-hidden ${themeClass} ${colorClass}`}>
-      {/* Mini-Intro Splash Screen (plays intro.mp4) */}
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={`flex flex-col h-screen w-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] overflow-hidden ${themeClass} ${colorClass}`}
+    >
+      {/* Mini-Intro Splash Screen */}
       {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
 
-      {/* Topbar */}
+      {/* Full-window Drag & Drop Fluent Overlay */}
+      <DragOverlay isDragging={isDraggingOver} />
+
+      {/* Top Titlebar */}
       <TitleBar
         onOpenSettings={() => setIsSettingsOpen(true)}
         closeToTray={settings.closeToTray}
         isMaximized={isMaximized}
       />
 
-      {/* Main Content Area - Expands gracefully in fullscreen while keeping restored window compact */}
-      <main
-        className={`flex-1 flex flex-col overflow-hidden w-full mx-auto transition-all duration-300 ${
-          isMaximized ? 'max-w-5xl lg:max-w-6xl px-10 pb-8' : 'max-w-4xl px-6 pb-6'
-        }`}
-      >
-        <WelcomeHeader vaultCount={vaultHistory.length} isMaximized={isMaximized} />
+      {/* Desktop Master-Detail Layout */}
+      <div className="flex-1 flex overflow-hidden w-full">
+        {/* Left Navigation Sidebar */}
+        <Sidebar
+          currentFilter={currentFilter}
+          onFilterChange={setCurrentFilter}
+          stats={{
+            total: vaultHistory.length,
+            folders: folderCount,
+            files: fileCount,
+            tempViews: tempViews.length,
+            activeSessions: activeSessions.length,
+          }}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onSelectFolder={handleSelectFolder}
+          onSelectFile={() => handleSelectFile(false)}
+          version={appVersion}
+          onCheckUpdate={handleManualUpdateCheck}
+          hasUpdate={!!(updateInfo?.available || updateInfo?.hasUpdate)}
+          isCheckingUpdate={isCheckingUpdate}
+        />
 
-        {/* Active Full Editing Sessions Banner */}
-        {activeSessions.length > 0 && (
-          <div className="mb-2 p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between shadow-sm">
-            <div className="flex items-center space-x-2 text-xs text-emerald-400">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>
-                Открыто для работы ({activeSessions.length}):{' '}
-                <strong>{activeSessions.map((s) => s.split(/[/\\]/).filter(Boolean).pop()).join(', ')}</strong>
-              </span>
-            </div>
+        {/* Right Main Workbench Canvas */}
+        <main className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-canvas)]">
+          {/* Workbench Action Toolbar */}
+          <WorkbenchToolbar
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            onOpenArchive={() => handleSelectFile(true)}
+            onClearHistory={handleClearHistory}
+            totalCount={vaultHistory.length}
+          />
 
-            <div className="flex items-center space-x-1.5">
-              {activeSessions.map((folder) => (
-                <button
-                  key={folder}
-                  type="button"
-                  onClick={() => handleRelockSession(folder)}
-                  className="px-3 py-1 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-bold border border-emerald-500/30 flex items-center space-x-1 transition-all shadow-sm active:scale-95 cursor-pointer"
-                >
-                  <Lock className="w-3 h-3" />
-                  <span>Заблокировать</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Active Temporary View Sessions Banner */}
-        {tempViews.length > 0 && (
-          <div className="mb-2 p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between shadow-sm">
-            <div className="flex items-center space-x-2 text-xs text-amber-300">
-              <Eye className="w-4 h-4 shrink-0 text-amber-400" />
-              <span>
-                Временный просмотр ({tempViews.length}):{' '}
-                <strong>{tempViews.map((v) => v.name).join(', ')}</strong>
-                <span className="text-[10px] text-amber-400/70 ml-1.5 font-normal">
-                  (оригинал остаётся заблокирован)
+          {/* Active Editing Sessions Banner */}
+          {activeSessions.length > 0 && (
+            <div className="px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 flex items-center justify-between shrink-0">
+              <div className="flex items-center space-x-2 text-xs text-emerald-400">
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  Активно для редактирования ({activeSessions.length}):{' '}
+                  <strong className="font-mono text-emerald-300">
+                    {activeSessions.map((s) => s.split(/[/\\]/).filter(Boolean).pop()).join(', ')}
+                  </strong>
                 </span>
-              </span>
+              </div>
+
+              <div className="flex items-center space-x-1.5">
+                {activeSessions.map((folder) => (
+                  <button
+                    key={folder}
+                    type="button"
+                    onClick={() => handleRelockSession(folder)}
+                    className="px-2.5 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-medium border border-emerald-500/30 flex items-center space-x-1 cursor-pointer"
+                  >
+                    <Lock className="w-3 h-3" />
+                    <span>Заблокировать</span>
+                  </button>
+                ))}
+              </div>
             </div>
+          )}
 
-            <div className="flex items-center space-x-1.5">
-              {tempViews.map((v) => (
-                <button
-                  key={v.tempDir}
-                  type="button"
-                  onClick={() => handleCloseTempView(v.tempDir)}
-                  className="px-3 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold border border-amber-500/30 flex items-center space-x-1 transition-all shadow-sm active:scale-95 cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                  <span>Завершить просмотр</span>
-                </button>
-              ))}
+          {/* Active Temporary View Sessions Banner */}
+          {tempViews.length > 0 && currentFilter !== 'temp' && (
+            <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 flex items-center justify-between shrink-0">
+              <div className="flex items-center space-x-2 text-xs text-amber-300">
+                <Eye className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                <span>
+                  Открыто во временном просмотре ({tempViews.length}):{' '}
+                  <strong className="font-mono text-amber-200">
+                    {tempViews.map((v) => v.name).join(', ')}
+                  </strong>
+                  <span className="text-[10px] text-amber-400/70 ml-1.5">
+                    (оригинал защищён)
+                  </span>
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCurrentFilter('temp')}
+                className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-medium cursor-pointer"
+              >
+                Перейти к сессиям
+              </button>
             </div>
-          </div>
-        )}
+          )}
 
-        <DropZone
-          onFileSelect={handleSelectFile}
-          onFolderSelect={handleSelectFolder}
-          onPathDropped={handleItemPath}
-          mode={mainMode}
-          onModeChange={setMainMode}
-          isMaximized={isMaximized}
-        />
-
-        <VaultList
-          items={vaultHistory}
-          onUnlockItem={handleUnlockHistoryItem}
-          onClearHistory={handleClearHistory}
-          isMaximized={isMaximized}
-        />
-      </main>
+          {/* Main Structured Ledger Table */}
+          <VaultLedger
+            items={vaultHistory}
+            tempViews={tempViews}
+            activeSessions={activeSessions}
+            filter={currentFilter}
+            searchTerm={searchTerm}
+            onUnlockItem={handleUnlockHistoryItem}
+            onRevealItem={handleRevealPath}
+            onCloseTempView={handleCloseTempView}
+            onRelockSession={handleRelockSession}
+            onSelectFolder={handleSelectFolder}
+            onSelectFile={() => handleSelectFile(false)}
+          />
+        </main>
+      </div>
 
       {/* Modals - Clean Overlays on top of Main UI */}
       <EncryptModal
@@ -392,7 +441,6 @@ export const App: React.FC = () => {
           onClose={() => setNotEncryptedNotice(null)}
           onEncrypt={(notice) => {
             setNotEncryptedNotice(null);
-            setMainMode('encrypt');
             window.electronAPI.getItemInfo(notice.path).then((info) => {
               if (info) setSelectedItemForEncrypt(info);
             });
@@ -409,30 +457,22 @@ export const App: React.FC = () => {
 
       {/* Floating Status Toast for Manual Version Check */}
       {updateToast && (
-        <div className="fixed bottom-12 right-4 z-50 px-4 py-2.5 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-color)] text-xs text-[var(--text-main)] shadow-2xl flex items-center space-x-2.5 animate-in fade-in slide-in-from-bottom-2 pointer-events-none backdrop-blur-md">
+        <div className="fixed bottom-4 right-4 z-50 px-3 py-1.5 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-xs text-[var(--text-primary)] shadow-lg flex items-center space-x-2 animate-in fade-in slide-in-from-bottom-2 pointer-events-none">
           {updateToast.isError ? (
-            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+            <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           ) : (
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           )}
-          <span className="font-medium">{updateToast.message}</span>
+          <span className="font-medium text-[11px]">{updateToast.message}</span>
         </div>
       )}
 
-      {/* Persistent Version Badge in the Bottom-Right Corner */}
-      <VersionBadge
-        version={appVersion}
-        isChecking={isCheckingUpdate}
-        hasUpdate={!!updateInfo?.hasUpdate}
-        onClick={handleManualUpdateCheck}
-      />
-
-      {/* Auto-Update Modal (appears only when newer version is detected) */}
+      {/* Auto-Update Modal */}
       <UpdateModal
         updateInfo={updateInfo}
         isOpen={showUpdateModal}
         onClose={() => setShowUpdateModal(false)}
-        onDownload={handleDownloadUpdate}
+        onOpenExternal={(url) => window.electronAPI.openExternal(url)}
       />
     </div>
   );

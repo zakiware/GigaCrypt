@@ -1,157 +1,231 @@
 @import "tailwindcss";
 
-/* Modern Typography */
+/* ==========================================================================
+   GigaCrypt Human-Crafted Desktop Design System
+   Inspired by Windows 11 Fluent Design, TablePlus & 1Password 8
+   ========================================================================== */
+
 @layer base {
   :root {
-    --bg-main: #0a0a0c;
-    --bg-card: rgba(23, 23, 28, 0.75);
-    --bg-card-hover: rgba(28, 28, 35, 0.9);
-    --border-color: rgba(255, 255, 255, 0.08);
-    --border-accent: rgba(249, 115, 22, 0.35);
-    --text-main: #f8fafc;
-    --text-muted: #94a3b8;
-    --text-secondary: #cbd5e1;
+    /* Fluent Slate Dark Palette (Authentic Windows 11 dark tones, not pitch black) */
+    --bg-canvas: #1b1c20;
+    --bg-sidebar: #141417;
+    --bg-surface: #222328;
+    --bg-surface-hover: #292a30;
+    --bg-surface-active: #303138;
+    --bg-input: #1a1a1e;
 
-    /* Ginger Amber Default */
-    --accent-primary: #f97316;
-    --accent-hover: #ea580c;
-    --accent-glow-bg: rgba(249, 115, 22, 0.15);
-    --accent-glow-color: rgba(249, 115, 22, 0.35);
-    --accent-gradient-start: #fb923c;
-    --accent-gradient-mid: #f97316;
-    --accent-gradient-end: #ea580c;
+    /* Hairline Divider Lines (clean 1px lines, no thick rounded boxes) */
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-hover: rgba(255, 255, 255, 0.16);
+    --border-focus: rgba(245, 158, 11, 0.6);
+
+    /* Text Hierarchy */
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0ab;
+    --text-tertiary: #6e6e78;
+
+    /* Professional Accent (Metallic Deep Amber) */
+    --accent-primary: #f59e0b;
+    --accent-hover: #d97706;
+    --accent-subtle: rgba(245, 158, 11, 0.12);
+    --accent-border: rgba(245, 158, 11, 0.35);
+
+    /* Legacy mapping for compatibility */
+    --bg-main: var(--bg-canvas);
+    --bg-card: var(--bg-surface);
+    --bg-card-hover: var(--bg-surface-hover);
+    --border-color: var(--border-subtle);
+    --border-color-hover: var(--border-hover);
+    --border-accent: var(--accent-border);
+    --text-main: var(--text-primary);
+    --text-muted: var(--text-tertiary);
   }
 
   /* Light Theme Overrides */
   .theme-light {
-    --bg-main: #f8fafc;
-    --bg-card: rgba(255, 255, 255, 0.85);
-    --bg-card-hover: rgba(255, 255, 255, 1);
-    --border-color: rgba(0, 0, 0, 0.08);
-    --border-accent: rgba(249, 115, 22, 0.4);
-    --text-main: #0f172a;
-    --text-muted: #64748b;
-    --text-secondary: #334155;
+    --bg-canvas: #f4f5f8;
+    --bg-sidebar: #eaebee;
+    --bg-surface: #ffffff;
+    --bg-surface-hover: #f0f1f4;
+    --bg-surface-active: #e5e6eb;
+    --bg-input: #ffffff;
+
+    --border-subtle: rgba(0, 0, 0, 0.08);
+    --border-hover: rgba(0, 0, 0, 0.16);
+    --border-focus: rgba(245, 158, 11, 0.7);
+
+    --text-primary: #18181b;
+    --text-secondary: #52525b;
+    --text-tertiary: #878791;
+
+    --accent-primary: #d97706;
+    --accent-hover: #b45309;
+    --accent-subtle: rgba(217, 119, 6, 0.12);
+    --accent-border: rgba(217, 119, 6, 0.35);
   }
 
-  /* Palettes */
-  /* 1. Ginger Amber */
+  /* Accent Color Palettes */
   .color-ginger {
-    --accent-primary: #f97316;
-    --accent-hover: #ea580c;
-    --accent-glow-bg: rgba(249, 115, 22, 0.15);
-    --accent-glow-color: rgba(249, 115, 22, 0.35);
-    --accent-gradient-start: #fdba74;
-    --accent-gradient-mid: #f97316;
-    --accent-gradient-end: #ea580c;
+    --accent-primary: #f59e0b;
+    --accent-hover: #d97706;
+    --accent-subtle: rgba(245, 158, 11, 0.12);
+    --accent-border: rgba(245, 158, 11, 0.35);
   }
 
-  /* 2. Emerald Cyber */
   .color-emerald {
     --accent-primary: #10b981;
     --accent-hover: #059669;
-    --accent-glow-bg: rgba(16, 185, 129, 0.15);
-    --accent-glow-color: rgba(16, 185, 129, 0.35);
-    --accent-gradient-start: #6ee7b7;
-    --accent-gradient-mid: #10b981;
-    --accent-gradient-end: #059669;
+    --accent-subtle: rgba(16, 185, 129, 0.12);
+    --accent-border: rgba(16, 185, 129, 0.35);
   }
 
-  /* 3. Sapphire Indigo */
   .color-sapphire {
     --accent-primary: #6366f1;
     --accent-hover: #4f46e5;
-    --accent-glow-bg: rgba(99, 102, 241, 0.15);
-    --accent-glow-color: rgba(99, 102, 241, 0.35);
-    --accent-gradient-start: #a5b4fc;
-    --accent-gradient-mid: #6366f1;
-    --accent-gradient-end: #4f46e5;
+    --accent-subtle: rgba(99, 102, 241, 0.12);
+    --accent-border: rgba(99, 102, 241, 0.35);
   }
 
-  /* 4. Purple Amethyst */
   .color-amethyst {
     --accent-primary: #a855f7;
     --accent-hover: #9333ea;
-    --accent-glow-bg: rgba(168, 85, 247, 0.15);
-    --accent-glow-color: rgba(168, 85, 247, 0.35);
-    --accent-gradient-start: #d8b4fe;
-    --accent-gradient-mid: #a855f7;
-    --accent-gradient-end: #9333ea;
+    --accent-subtle: rgba(168, 85, 247, 0.12);
+    --accent-border: rgba(168, 85, 247, 0.35);
   }
 
-  /* 5. Ruby Rose */
   .color-ruby {
     --accent-primary: #f43f5e;
     --accent-hover: #e11d48;
-    --accent-glow-bg: rgba(244, 63, 94, 0.15);
-    --accent-glow-color: rgba(244, 63, 94, 0.35);
-    --accent-gradient-start: #fda4af;
-    --accent-gradient-mid: #f43f5e;
-    --accent-gradient-end: #e11d48;
+    --accent-subtle: rgba(244, 63, 94, 0.12);
+    --accent-border: rgba(244, 63, 94, 0.35);
   }
 
-  /* 6. Titanium Silver */
   .color-titanium {
-    --accent-primary: #94a3b8;
-    --accent-hover: #64748b;
-    --accent-glow-bg: rgba(148, 163, 184, 0.15);
-    --accent-glow-color: rgba(148, 163, 184, 0.35);
-    --accent-gradient-start: #e2e8f0;
-    --accent-gradient-mid: #94a3b8;
-    --accent-gradient-end: #64748b;
+    --accent-primary: #a1a1aa;
+    --accent-hover: #71717a;
+    --accent-subtle: rgba(161, 161, 170, 0.12);
+    --accent-border: rgba(161, 161, 170, 0.35);
   }
 
   body {
-    background-color: var(--bg-main);
-    color: var(--text-main);
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    transition: background-color 0.25s ease, color 0.25s ease;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
   }
 }
 
-/* Scrollbars */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--accent-glow-color);
-  border-radius: 9999px;
+/* ==========================================================================
+   Desktop UI Utilities (NO BLURRY SHADOWS, FLAT STRUCTURAL LAYERING)
+   ========================================================================== */
+
+/* Buttons */
+.fluent-btn-primary {
+  background-color: var(--accent-primary);
+  color: #121316;
+  font-weight: 600;
+  border-radius: 6px;
+  transition: all 0.12s ease;
+  border: 1px solid rgba(0, 0, 0, 0.15);
 }
 
-/* App Regions */
+.fluent-btn-primary:hover {
+  background-color: var(--accent-hover);
+  color: #ffffff;
+}
+
+.fluent-btn-primary:active {
+  transform: translateY(1px);
+}
+
+.fluent-btn-secondary {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  font-weight: 500;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  transition: all 0.12s ease;
+}
+
+.fluent-btn-secondary:hover {
+  background-color: var(--bg-surface-hover);
+  border-color: var(--border-hover);
+}
+
+.fluent-btn-secondary:active {
+  background-color: var(--bg-surface-active);
+  transform: translateY(1px);
+}
+
+/* Table Row & Cell */
+.ledger-row {
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background-color 0.1s ease;
+}
+
+.ledger-row:hover {
+  background-color: var(--bg-surface-hover);
+}
+
+.ledger-row.selected {
+  background-color: var(--accent-subtle);
+}
+
+/* Nav Item */
+.nav-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.1s ease;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Electron drag regions */
 .app-drag {
   -webkit-app-region: drag;
 }
+
 .app-no-drag {
   -webkit-app-region: no-drag;
 }
 
-/* UI Elements */
-.glass-card {
-  background: var(--bg-card);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid var(--border-color);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.glass-card:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--border-accent);
+/* Native-style scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-.accent-btn {
-  background: linear-gradient(135deg, var(--accent-gradient-mid) 0%, var(--accent-gradient-end) 100%);
-  box-shadow: 0 4px 16px -2px var(--accent-glow-color);
-}
-.accent-btn:hover {
-  background: linear-gradient(135deg, var(--accent-gradient-start) 0%, var(--accent-gradient-mid) 100%);
-  box-shadow: 0 6px 20px 0 var(--accent-glow-color);
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.giga-glow {
-  filter: drop-shadow(0 0 12px var(--accent-glow-color));
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }

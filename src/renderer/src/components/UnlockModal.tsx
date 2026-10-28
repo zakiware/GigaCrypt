@@ -10,10 +10,8 @@ import {
   HelpCircle,
   X,
   Loader2,
-  FolderCheck,
-  ExternalLink,
+  CheckCircle2,
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import { ProgressUpdate, UnlockRequest } from '../../types';
 
 interface UnlockModalProps {
@@ -32,6 +30,7 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDone, setIsDone] = useState(false);
   const [progress, setProgress] = useState<ProgressUpdate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isShaking, setIsShaking] = useState(false);
@@ -41,6 +40,7 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
       setPassword('');
       setError(null);
       setIsProcessing(false);
+      setIsDone(false);
       setProgress(null);
       setIsShaking(false);
     }
@@ -82,19 +82,13 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
       });
 
       if (result.success) {
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 },
-          colors: ['#f97316', '#ea580c', '#34d399', '#ffffff'],
-        });
-
+        setIsDone(true);
         setTimeout(() => {
           onSuccess();
           onClose();
-        }, 600);
+        }, 500);
       } else {
-        setError(result.error || 'Неверный пароль или ошибка расшифровки');
+        setError(result.error || 'Неверный пароль или нарушена целостность данных');
         triggerShake();
         setIsProcessing(false);
       }
@@ -107,7 +101,7 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
 
   const triggerShake = () => {
     setIsShaking(true);
-    setTimeout(() => setIsShaking(false), 500);
+    setTimeout(() => setIsShaking(false), 400);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -118,72 +112,67 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
         <motion.div
           animate={
             isShaking
-              ? { x: [-12, 12, -8, 8, -4, 4, 0] }
+              ? { x: [-8, 8, -6, 6, -3, 3, 0] }
               : { opacity: 1, scale: 1, y: 0 }
           }
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-          className="relative w-full max-w-lg rounded-3xl bg-[var(--bg-main)] border border-[var(--border-color)] p-6 shadow-2xl text-[var(--text-main)] overflow-hidden"
+          initial={{ opacity: 0, scale: 0.98, y: 6 }}
+          exit={{ opacity: 0, scale: 0.98, y: 6 }}
+          transition={{ duration: 0.15, ease: 'easeOut' }}
+          className="relative w-full max-w-lg rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] p-5 shadow-2xl text-[var(--text-main)] overflow-hidden"
         >
-          {/* Subtle accent glow on top */}
-          <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-80 h-24 bg-gradient-to-r from-[var(--accent-primary)] to-amber-500 blur-3xl opacity-20 pointer-events-none" />
-
           {/* Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-[var(--border-color)]">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-[var(--accent-glow-bg)] border border-[var(--border-accent)] flex items-center justify-center text-[var(--accent-primary)] shadow-sm">
-                <KeyRound className="w-5 h-5" />
+          <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[var(--bg-card)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-primary)]">
+                <KeyRound className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-[var(--text-main)]">Доступ ограничен: Введите пароль</h3>
-                <p className="text-xs text-[var(--text-muted)]">Объект заблокирован и защищен GigaCrypt</p>
+                <h3 className="text-sm font-semibold text-[var(--text-main)]">Разблокировка хранилища</h3>
+                <p className="text-[11px] text-[var(--text-muted)]">Введите пароль для проверки целостности и расшифровки</p>
               </div>
             </div>
 
             {!isProcessing && (
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--border-color)] transition-colors cursor-pointer"
+                className="w-7 h-7 rounded-md flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/10 transition-colors cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
 
           {/* Warning if user attempted to re-encrypt an already locked object */}
           {request.alreadyLockedWarning && (
-            <div className="my-3 p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center space-x-2.5 text-xs text-amber-300">
+            <div className="my-2.5 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center space-x-2 text-xs text-amber-300">
               <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>
-                {request.type === 'folder' ? 'Папка уже зашифрована!' : 'Файл уже зашифрован!'} Менять или перезаписывать пароль нельзя. Введите текущий пароль для доступа.
-              </span>
+              <span>Объект уже зашифрован. Введите пароль для доступа.</span>
             </div>
           )}
 
           {/* Target Card */}
-          <div className="my-4 p-4 rounded-2xl bg-[var(--bg-card)] border border-[var(--border-color)] flex items-center space-x-3.5">
-            <div className="w-11 h-11 rounded-xl bg-[var(--accent-glow-bg)] border border-[var(--border-accent)] flex items-center justify-center text-[var(--accent-primary)] shrink-0">
+          <div className="my-3 p-3 rounded-lg bg-[var(--bg-card)] border border-[var(--border-color)] flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-md bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center justify-center text-[var(--accent-primary)] shrink-0">
               {request.type === 'folder' ? (
-                <FolderLock className="w-6 h-6" />
+                <FolderLock className="w-4 h-4" />
               ) : (
-                <FileLock className="w-6 h-6" />
+                <FileLock className="w-4 h-4" />
               )}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center space-x-2">
-                <span className="font-bold text-sm text-[var(--text-main)] truncate">{request.fileName}</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--accent-glow-bg)] text-[var(--accent-primary)] font-mono border border-[var(--border-accent)]">
-                  {request.type === 'folder' ? 'Папка' : '.gcrypt'}
+                <span className="font-medium text-xs text-[var(--text-main)] truncate">{request.fileName}</span>
+                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/5 border border-white/10 text-[var(--text-muted)]">
+                  {request.type === 'folder' ? 'DIR' : '.GCRYPT'}
                 </span>
               </div>
-              <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">{request.filePath}</p>
+              <p className="text-[10px] font-mono text-[var(--text-muted)] truncate mt-0.5">{request.filePath}</p>
               {request.size > 0 && (
-                <div className="text-[11px] text-[var(--text-muted)] mt-1">
+                <div className="text-[10px] font-mono text-[var(--text-muted)] mt-0.5">
                   Размер: {formatBytes(request.size)}
                 </div>
               )}
@@ -192,21 +181,26 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
 
           {/* Password Hint if present */}
           {request.hint && (
-            <div className="mb-4 p-3 rounded-xl bg-[var(--accent-glow-bg)] border border-[var(--border-accent)] flex items-start space-x-2 text-xs text-[var(--text-main)]">
-              <HelpCircle className="w-4 h-4 text-[var(--accent-primary)] shrink-0 mt-0.5" />
+            <div className="mb-3 p-2.5 rounded-lg bg-[var(--accent-glow-bg)] border border-[var(--border-accent)] flex items-start space-x-2 text-xs text-[var(--text-main)]">
+              <HelpCircle className="w-3.5 h-3.5 text-[var(--accent-primary)] shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold text-[var(--accent-primary)]">Подсказка автора:</span>{' '}
-                <span>{request.hint}</span>
+                <span className="font-semibold text-[var(--accent-primary)]">Подсказка:</span>{' '}
+                <span className="text-[var(--text-secondary)]">{request.hint}</span>
               </div>
             </div>
           )}
 
-          {/* Form */}
-          {!isProcessing ? (
-            <div className="space-y-4">
+          {isDone ? (
+            <div className="py-8 flex flex-col items-center justify-center text-center space-y-2">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+              <h4 className="font-semibold text-xs text-[var(--text-main)]">Пароль подтверждён</h4>
+              <p className="text-[11px] text-[var(--text-muted)]">Доступ к данным открыт</p>
+            </div>
+          ) : !isProcessing ? (
+            <div className="space-y-3.5">
               <div>
-                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
-                  Пароль для разблокировки
+                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
+                  Пароль
                 </label>
                 <div className="relative">
                   <input
@@ -214,88 +208,80 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Введите пароль объекта..."
-                    className="w-full px-4 py-2.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border-color)] focus:border-[var(--accent-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-primary)] text-sm text-[var(--text-main)] placeholder-gray-500 font-mono transition-all"
+                    placeholder="Введите пароль..."
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-card)] border border-[var(--border-color)] focus:border-[var(--accent-primary)] focus:outline-none text-xs text-[var(--text-main)] font-mono transition-all"
                     autoFocus
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-white cursor-pointer"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
                 </div>
               </div>
 
               {/* Error Message */}
               {error && (
-                <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center space-x-2 text-xs text-red-300">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center space-x-2 text-xs text-red-400">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{error}</span>
                 </div>
               )}
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3">
-                <div className="flex flex-col items-center sm:items-start space-y-1 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => handleUnlock(true)}
-                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] text-[var(--accent-primary)] text-xs font-semibold border border-[var(--border-color)] hover:border-[var(--border-accent)] flex items-center justify-center space-x-1.5 transition-all active:scale-95 cursor-pointer shadow-sm"
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>Временный просмотр</span>
-                  </button>
-                  <span className="text-[10px] text-[var(--text-muted)]">
-                    Оригинал остаётся заблокирован
-                  </span>
-                </div>
+              <div className="flex items-center justify-between pt-2 border-t border-[var(--border-color)]">
+                <button
+                  type="button"
+                  onClick={() => handleUnlock(true)}
+                  className="px-3 py-1.5 rounded-lg secondary-btn text-xs font-medium flex items-center space-x-1.5 cursor-pointer"
+                  title="Открыть во временной изолированной песочнице без расшифровки оригинала"
+                >
+                  <Eye className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
+                  <span>Временный просмотр</span>
+                </button>
 
-                <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
+                <div className="flex items-center space-x-2">
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-4 py-2.5 rounded-xl text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--border-color)] transition-colors cursor-pointer"
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/5 transition-colors cursor-pointer"
                   >
                     Отмена
                   </button>
                   <button
                     type="button"
                     onClick={() => handleUnlock(false)}
-                    className="px-6 py-2.5 rounded-xl accent-btn text-white text-sm font-semibold flex items-center space-x-2 shadow-sm cursor-pointer active:scale-95 transition-all"
+                    className="px-4 py-1.5 rounded-lg primary-btn text-xs font-semibold flex items-center space-x-1.5 cursor-pointer shadow-sm"
                   >
-                    <FolderCheck className="w-4 h-4" />
-                    <span>Полная расшифровка</span>
+                    <span>Расшифровать</span>
                   </button>
                 </div>
               </div>
             </div>
           ) : (
             /* Progress State */
-            <div className="py-8 flex flex-col items-center justify-center text-center space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-[var(--accent-glow-bg)] border border-[var(--border-accent)] flex items-center justify-center text-[var(--accent-primary)] animate-pulse shadow-sm">
-                <Loader2 className="w-7 h-7 animate-spin" />
-              </div>
-
+            <div className="py-8 flex flex-col items-center justify-center text-center space-y-3">
+              <Loader2 className="w-6 h-6 animate-spin text-[var(--accent-primary)]" />
               <div>
-                <h4 className="font-bold text-[var(--text-main)] text-base">Идёт расшифровка объекта...</h4>
-                <p className="text-xs text-[var(--accent-primary)] mt-1">
-                  {progress?.message || 'Проверка целостности и распаковка...'}
+                <h4 className="font-semibold text-xs text-[var(--text-main)]">Расшифровка и проверка подлинности...</h4>
+                <p className="text-[11px] text-[var(--text-muted)] mt-0.5 font-mono">
+                  {progress?.message || 'Пожалуйста, подождите...'}
                 </p>
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full max-w-sm space-y-1.5">
-                <div className="h-2.5 w-full bg-[var(--bg-card)] rounded-full overflow-hidden border border-[var(--border-color)]">
+              <div className="w-full max-w-xs space-y-1">
+                <div className="h-1.5 w-full bg-[var(--bg-card)] rounded-full overflow-hidden border border-[var(--border-color)]">
                   <div
-                    className="h-full bg-[var(--accent-primary)] transition-all duration-200"
+                    className="h-full bg-[var(--accent-primary)] transition-all duration-150"
                     style={{ width: `${progress?.percent || 20}%` }}
                   />
                 </div>
-                <div className="flex justify-between items-center text-[11px] text-[var(--text-muted)] font-mono">
+                <div className="flex justify-between items-center text-[10px] text-[var(--text-muted)] font-mono">
                   <span>{progress?.stage || 'decrypting'}</span>
-                  <span className="text-[var(--accent-primary)] font-bold">{progress?.percent || 0}%</span>
+                  <span className="text-[var(--accent-primary)]">{progress?.percent || 0}%</span>
                 </div>
               </div>
             </div>

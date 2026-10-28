@@ -7,7 +7,7 @@
   <p><em>Military-Grade File & Folder Encryption with Warm Amber Obsidian Aesthetic</em></p>
 
   <p>
-    <a href="https://github.com/zakiware/GigaCrypt/releases/tag/v1.0.0"><img src="https://img.shields.io/badge/Release-v1.0.0-f59e0b?style=for-the-badge&logo=github" alt="Release v1.0.0" /></a>
+    <a href="https://github.com/zakiware/GigaCrypt/releases/tag/v1.0.1"><img src="https://img.shields.io/badge/Release-v1.0.1-f59e0b?style=for-the-badge&logo=github" alt="Release v1.0.1" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011%20x64-blue?style=for-the-badge&logo=windows" alt="Windows 10/11 x64" />
     <img src="https://img.shields.io/badge/Cipher-AES--256--GCM-10b981?style=for-the-badge&logo=shield" alt="AES-256-GCM" />
     <img src="https://img.shields.io/badge/KDF-PBKDF2--SHA512-indigo?style=for-the-badge" alt="PBKDF2-SHA512" />
@@ -49,20 +49,21 @@
 * **Ассоциация `.gcrypt`**:
   * Автоматическая привязка файлов `.gcrypt` с индивидуальной 3D-иконкой и мгновенным открытием диалога ввода пароля по двойному клику.
 
-### 5. 🎬 Кинематографичный интерфейс (Ginger Obsidian UI)
-* Анимированное видео-интро при первом запуске (`intro.mp4`).
-* Элегантный акцент цвета спелого янтаря и имбиря с физическими анимациями (Framer Motion).
-* Адаптивный интерфейс: оптимизированные крупные элементы управления и типографика для полноэкранного режима 4K/FullHD и ультракомпактный оконный режим.
-* Постоянный бейдж версии `v1.0.0` в правом нижнем углу.
+### 5. 🖥 Современный десктопный интерфейс (Workbench Layout)
+* Продуманная компоновка с левой боковой панелью (Sidebar), быстрой фильтрацией хранилищ и поиском.
+* Структурированный табличный реестр (Vault Ledger) с информацией о статусе защиты, путях и типах объектов.
+* Элегантный акцент цвета спелого янтаря и имбиря с естественными микроанимациями.
+* Адаптивный интерфейс: оптимизированные крупные элементы управления и четкая типографика для полноэкранного режима 4K/FullHD и ультракомпактный оконный режим.
+* Постоянный бейдж версии `v1.0.1` в правом нижнем углу с индикацией обновлений.
 
-### 6. 🔄 Умное автообновление (GitHub Releases Auto-Update)
+### 6. 🔄 Встроенное автообновление (In-App Auto-Updater)
 * Фоновая ненавязчивая проверка новых версий через официальный GitHub API (`zakiware/GigaCrypt`).
 * Окно обновления появляется **только тогда, когда действительно вышла новая версия**.
-* Просмотр списка изменений (Changelog) и скачивание установщика в один клик.
+* Просмотр списка изменений (Changelog) и скачивание с установкой обновления прямо в интерфейсе программы.
 * Ручная проверка версии кликом по бейджу в правом нижнем углу.
 
 ### 7. 📦 Установщик «Всё включено» (Offline-Ready Modern Installer)
-* Красивый NSIS-установщик `GigaCrypt-Setup-1.0.0.exe`.
+* Красивый NSIS-установщик `GigaCrypt-Setup-1.0.1.exe`.
 * **Автоматическая установка системных зависимостей**: установщик проверяет наличие **Microsoft Visual C++ 2015-2022 Redistributable (x64)** и автоматически тихо устанавливает необходимые библиотеки, если они отсутствуют в системе. Программа гарантированно запустится на любом чистом ПК!
 
 ---

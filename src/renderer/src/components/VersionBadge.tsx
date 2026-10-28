@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, RefreshCw } from 'lucide-react';
+import { RefreshCw, Check } from 'lucide-react';
 
 interface VersionBadgeProps {
   version: string;
@@ -15,32 +15,32 @@ export const VersionBadge: React.FC<VersionBadgeProps> = ({
   onClick,
 }) => {
   return (
-    <div className="fixed bottom-3 right-4 z-40 select-none">
+    <div className="fixed bottom-2.5 right-3.5 z-40 select-none">
       <button
         type="button"
         onClick={onClick}
-        title={hasUpdate ? 'Доступно обновление! Нажмите для просмотра' : `GigaCrypt v${version} • Нажмите для проверки обновлений`}
-        className={`px-3 py-1.5 rounded-full border flex items-center space-x-2 text-xs font-semibold backdrop-blur-md transition-all shadow-md active:scale-95 cursor-pointer ${
+        title={hasUpdate ? 'Доступна новая версия' : `GigaCrypt v${version} • Нажмите для проверки`}
+        className={`px-2.5 py-1 rounded-md border flex items-center space-x-1.5 text-xs transition-all cursor-pointer ${
           hasUpdate
-            ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/50 text-amber-300 animate-pulse'
-            : 'bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] border-[var(--border-color)] hover:border-[var(--border-accent)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
+            ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+            : 'bg-[var(--bg-surface)]/90 hover:bg-[var(--bg-card)] border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-main)] shadow-sm'
         }`}
       >
         {isChecking ? (
-          <RefreshCw className="w-3 h-3 animate-spin text-[var(--accent-primary)]" />
+          <RefreshCw className="w-2.5 h-2.5 animate-spin text-[var(--accent-primary)]" />
         ) : hasUpdate ? (
-          <Sparkles className="w-3 h-3 text-amber-400" />
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-pulse" />
         ) : (
-          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block shadow-[0_0_6px_rgba(16,185,129,0.7)]" />
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
         )}
 
-        <span className="font-mono text-[11px] tracking-tight">
+        <span className="font-mono text-[10px] tracking-tight">
           v{version}
         </span>
 
         {hasUpdate && (
-          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-amber-500 text-black">
-            NEW
+          <span className="text-[9px] font-mono font-bold px-1 py-0.1 rounded bg-amber-500 text-zinc-950 ml-0.5">
+            UPDATE
           </span>
         )}
       </button>

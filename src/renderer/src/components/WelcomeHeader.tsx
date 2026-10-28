@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, HardDrive } from 'lucide-react';
+import { ShieldCheck, Database, Lock } from 'lucide-react';
 
 interface WelcomeHeaderProps {
   vaultCount: number;
@@ -7,52 +7,52 @@ interface WelcomeHeaderProps {
 }
 
 export const WelcomeHeader: React.FC<WelcomeHeaderProps> = ({ vaultCount, isMaximized = false }) => {
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return 'Доброе утро';
-    if (hour >= 12 && hour < 18) return 'Добрый день';
-    if (hour >= 18 && hour < 23) return 'Добрый вечер';
-    return 'Доброй ночи';
-  };
-
   return (
-    <div className={`transition-all ${isMaximized ? 'pt-7 pb-4' : 'pt-4 pb-2'}`}>
+    <div className={`transition-all border-b border-[var(--border-color)] ${isMaximized ? 'pt-5 pb-4 mb-4' : 'pt-3 pb-3 mb-3'}`}>
       <div className="flex items-center justify-between">
         <div>
-          <h1
-            className={`font-black tracking-tight text-[var(--text-main)] flex items-center transition-all ${
-              isMaximized ? 'text-3xl lg:text-4xl' : 'text-xl md:text-2xl'
-            }`}
-          >
-            {getGreeting()}
-          </h1>
+          <div className="flex items-center space-x-2">
+            <h1
+              className={`font-semibold tracking-tight text-[var(--text-main)] transition-all ${
+                isMaximized ? 'text-xl lg:text-2xl' : 'text-base font-bold'
+              }`}
+            >
+              Защищённое хранилище
+            </h1>
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-medium bg-[var(--accent-glow-bg)] text-[var(--accent-primary)] border border-[var(--border-accent)]">
+              AES-256-GCM
+            </span>
+          </div>
           <p
-            className={`text-[var(--text-muted)] mt-1 transition-all ${
-              isMaximized ? 'text-sm' : 'text-xs'
+            className={`text-[var(--text-muted)] mt-0.5 transition-all ${
+              isMaximized ? 'text-xs' : 'text-[11px]'
             }`}
           >
-            Простая защита папок и файлов на месте без лишних копий
+            Локальная криптографическая защита файлов и каталогов без создания дубликатов
           </p>
         </div>
 
-        {/* Feature Badges */}
-        <div className="flex items-center gap-2.5">
+        {/* Status Indicators */}
+        <div className="flex items-center gap-2">
           <div
-            className={`glass-card rounded-xl flex items-center space-x-2 text-[var(--text-secondary)] transition-all ${
-              isMaximized ? 'px-3.5 py-1.5 text-xs' : 'px-2.5 py-1 text-[11px]'
+            className={`rounded-lg bg-[var(--bg-card)] border border-[var(--border-color)] flex items-center space-x-2 text-[var(--text-secondary)] transition-all ${
+              isMaximized ? 'px-3 py-1.5 text-xs' : 'px-2.5 py-1 text-[11px]'
             }`}
           >
-            <ShieldCheck className={isMaximized ? 'w-4 h-4 text-[var(--accent-primary)]' : 'w-3.5 h-3.5 text-[var(--accent-primary)]'} />
-            <span className="font-semibold">AES-256</span>
+            <Database className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+            <span className="font-mono text-[var(--text-main)]">{vaultCount}</span>
+            <span className="text-[var(--text-muted)]">
+              {vaultCount === 1 ? 'объект' : vaultCount > 1 && vaultCount < 5 ? 'объекта' : 'объектов'}
+            </span>
           </div>
 
           <div
-            className={`glass-card rounded-xl flex items-center space-x-2 text-[var(--text-secondary)] transition-all ${
-              isMaximized ? 'px-3.5 py-1.5 text-xs' : 'px-2.5 py-1 text-[11px]'
+            className={`rounded-lg bg-[var(--bg-card)] border border-[var(--border-color)] flex items-center space-x-1.5 text-[var(--text-secondary)] transition-all ${
+              isMaximized ? 'px-3 py-1.5 text-xs' : 'px-2.5 py-1 text-[11px]'
             }`}
           >
-            <HardDrive className={isMaximized ? 'w-4 h-4 text-[var(--text-muted)]' : 'w-3.5 h-3.5 text-[var(--text-muted)]'} />
-            <span>Объектов: {vaultCount}</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+            <span className="text-[var(--text-muted)]">Готов к работе</span>
           </div>
         </div>
       </div>

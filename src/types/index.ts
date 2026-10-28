@@ -91,6 +91,7 @@ export interface OperationResult {
 
 export interface UpdateInfo {
   available: boolean;
+  hasUpdate?: boolean;
   currentVersion: string;
   latestVersion: string;
   releaseName: string;
@@ -98,6 +99,12 @@ export interface UpdateInfo {
   downloadUrl?: string;
   publishedAt?: string;
   error?: string;
+}
+
+export interface UpdateDownloadProgress {
+  percent: number;
+  receivedBytes: number;
+  totalBytes: number;
 }
 
 export interface ElectronAPI {
@@ -120,6 +127,8 @@ export interface ElectronAPI {
   getSystemTheme: () => Promise<'dark' | 'light'>;
   getAppVersion: () => Promise<string>;
   checkForUpdates: () => Promise<UpdateInfo>;
+  downloadUpdate: (url: string) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+  installUpdate: (filePath: string) => Promise<boolean>;
   openExternal: (url: string) => Promise<void>;
   isWindowMaximized: () => Promise<boolean>;
   onWindowMaximizedChanged: (callback: (isMaximized: boolean) => void) => () => void;
@@ -127,6 +136,7 @@ export interface ElectronAPI {
   onEncryptRequested: (callback: (info: ItemInfo) => void) => () => void;
   onNotEncryptedNotice: (callback: (notice: NotEncryptedNotice) => void) => () => void;
   onProgress: (callback: (progress: ProgressUpdate) => void) => () => void;
+  onUpdateDownloadProgress: (callback: (progress: UpdateDownloadProgress) => void) => () => void;
   onThemeChanged: (callback: (theme: 'dark' | 'light') => void) => () => void;
   onActiveSessionsChanged: (callback: (folders: string[]) => void) => () => void;
   onActiveTempViewsChanged: (callback: (views: TempViewInfo[]) => void) => () => void;

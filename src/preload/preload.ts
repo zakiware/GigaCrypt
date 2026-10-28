@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSystemTheme: () => ipcRenderer.invoke('get-system-theme'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: (url: string) => ipcRenderer.invoke('download-update', url),
+  installUpdate: (filePath: string) => ipcRenderer.invoke('install-update', filePath),
   openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
   isWindowMaximized: () => ipcRenderer.invoke('is-window-maximized'),
 
@@ -61,6 +63,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('operation-progress', handler);
     return () => {
       ipcRenderer.removeListener('operation-progress', handler);
+    };
+  },
+
+  onUpdateDownloadProgress: (callback: (progress: { percent: number; receivedBytes: number; totalBytes: number }) => void) => {
+    const handler = (_event: any, progress: any) => callback(progress);
+    ipcRenderer.on('update-download-progress', handler);
+    return () => {
+      ipcRenderer.removeListener('update-download-progress', handler);
     };
   },
 
