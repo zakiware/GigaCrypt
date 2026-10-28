@@ -353,7 +353,6 @@ export const App: React.FC = () => {
           onOpenSettings={() => setIsSettingsOpen(true)}
           onSelectFolder={handleSelectFolder}
           onSelectFile={() => handleSelectFile(false)}
-          onOpenEncryptedFolder={handleOpenEncryptedFolder}
           version={appVersion}
           onCheckUpdate={handleManualUpdateCheck}
           hasUpdate={!!(updateInfo?.available || updateInfo?.hasUpdate)}

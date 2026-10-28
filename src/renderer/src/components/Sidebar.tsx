@@ -27,7 +27,6 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onSelectFolder: () => void;
   onSelectFile: () => void;
-  onOpenEncryptedFolder?: () => void;
   version: string;
   onCheckUpdate: () => void;
   hasUpdate: boolean;
@@ -41,7 +40,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenSettings,
   onSelectFolder,
   onSelectFile,
-  onOpenEncryptedFolder,
   version,
   onCheckUpdate,
   hasUpdate,
@@ -66,7 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Quick Action Split Dropdown / Buttons */}
+        {/* Quick Action Buttons: Protect Folder / Encrypt File */}
         <div className="space-y-1.5 px-1">
           <button
             type="button"
@@ -85,17 +83,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <FileLock className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
             <span>Зашифровать файл</span>
           </button>
-
-          {onOpenEncryptedFolder && (
-            <button
-              type="button"
-              onClick={onOpenEncryptedFolder}
-              className="w-full flex items-center justify-center space-x-2 px-3 py-1.5 rounded-md fluent-btn-secondary text-xs cursor-pointer border border-[var(--border-subtle)] hover:border-[var(--accent-primary)]/40 transition-colors"
-            >
-              <FolderLock className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
-              <span>Открыть зашифрованную папку</span>
-            </button>
-          )}
         </div>
 
         {/* Section Divider */}
