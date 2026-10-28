@@ -1,15 +1,14 @@
 import React from 'react';
-import { Minus, Square, Copy, X, Settings as SettingsIcon } from 'lucide-react';
+import { Minus, Square, Copy, X } from 'lucide-react';
 import { GigaIcon } from './GigaIcon';
 
 interface TitleBarProps {
-  onOpenSettings: () => void;
+  onOpenSettings?: () => void;
   closeToTray: boolean;
   isMaximized?: boolean;
 }
 
 export const TitleBar: React.FC<TitleBarProps> = ({
-  onOpenSettings,
   closeToTray,
   isMaximized = false,
 }) => {
@@ -40,19 +39,6 @@ export const TitleBar: React.FC<TitleBarProps> = ({
 
       {/* Controls */}
       <div className="flex items-center app-no-drag">
-        {/* Settings button */}
-        <div className="mr-1">
-          <button
-            onClick={onOpenSettings}
-            title="Параметры"
-            className="w-8 h-8 rounded-md flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-white/10 transition-colors cursor-pointer"
-          >
-            <SettingsIcon className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        <div className="h-4 w-px bg-[var(--border-color)] mx-1" />
-
         {/* Windows caption buttons */}
         <button
           onClick={handleMinimize}

@@ -27,6 +27,7 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onSelectFolder: () => void;
   onSelectFile: () => void;
+  onOpenEncryptedFolder?: () => void;
   version: string;
   onCheckUpdate: () => void;
   hasUpdate: boolean;
@@ -40,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenSettings,
   onSelectFolder,
   onSelectFile,
+  onOpenEncryptedFolder,
   version,
   onCheckUpdate,
   hasUpdate,
@@ -49,14 +51,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <aside className="w-64 bg-[var(--bg-sidebar)] border-r border-[var(--border-subtle)] flex flex-col justify-between select-none shrink-0 h-full">
       {/* Top Section */}
       <div className="flex flex-col p-3 space-y-4">
-        {/* Brand Identity */}
-        <div className="flex items-center space-x-2.5 px-2 pt-1 pb-2">
-          <GigaIcon size={24} />
-          <div className="flex flex-col leading-none">
-            <span className="font-bold text-sm tracking-tight text-[var(--text-primary)]">
-              Giga<span className="text-[var(--accent-primary)]">Crypt</span>
-            </span>
-            <span className="text-[10px] text-[var(--text-tertiary)] mt-1 font-mono">
+        {/* Workspace Brand / Header */}
+        <div className="flex items-center space-x-2.5 px-2 py-1">
+          <div className="w-8 h-8 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--accent-primary)] shadow-sm">
+            <GigaIcon size={20} />
+          </div>
+          <div>
+            <div className="text-xs font-bold tracking-tight text-[var(--text-primary)] flex items-center">
+              Giga<span className="text-[var(--accent-primary)] ml-0.5">Crypt</span>
+            </div>
+            <span className="text-[9px] font-mono text-[var(--text-tertiary)] uppercase tracking-wider block">
               AES-256 VAULT
             </span>
           </div>
@@ -81,6 +85,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <FileLock className="w-3.5 h-3.5 text-[var(--text-secondary)]" />
             <span>Зашифровать файл</span>
           </button>
+
+          {onOpenEncryptedFolder && (
+            <button
+              type="button"
+              onClick={onOpenEncryptedFolder}
+              className="w-full flex items-center justify-center space-x-2 px-3 py-1.5 rounded-md fluent-btn-secondary text-xs cursor-pointer border border-[var(--border-subtle)] hover:border-[var(--accent-primary)]/40 transition-colors"
+            >
+              <FolderLock className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
+              <span>Открыть зашифрованную папку</span>
+            </button>
+          )}
         </div>
 
         {/* Section Divider */}
@@ -144,10 +159,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <div className="flex items-center space-x-2.5">
               <Eye className={`w-4 h-4 ${stats.tempViews > 0 ? 'text-amber-400' : 'text-[var(--text-secondary)]'}`} />
-              <span>Временный просмотр</span>
+              <span>Песочницы</span>
             </div>
             {stats.tempViews > 0 ? (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-amber-500/20 text-amber-300 font-bold">
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300">
                 {stats.tempViews}
               </span>
             ) : (
@@ -157,42 +172,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Footer Section: Settings & Version */}
-      <div className="p-3 border-t border-[var(--border-subtle)] space-y-1">
+      {/* Sidebar Footer with Settings & App Version / Update Check */}
+      <div className="p-3 border-t border-[var(--border-subtle)] bg-[var(--bg-canvas)] space-y-2">
+        {/* Settings button - The ONLY settings button in the app */}
         <button
           type="button"
           onClick={onOpenSettings}
-          className="nav-item justify-between hover:bg-white/5"
+          className="w-full flex items-center space-x-2.5 px-2.5 py-1.5 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors cursor-pointer text-xs"
         >
-          <div className="flex items-center space-x-2.5">
-            <Settings className="w-4 h-4 text-[var(--text-secondary)]" />
-            <span>Параметры</span>
-          </div>
+          <Settings className="w-4 h-4 text-[var(--text-tertiary)]" />
+          <span className="font-medium">Параметры системы</span>
         </button>
 
-        <div className="flex items-center justify-between px-2 pt-2 text-[11px] text-[var(--text-tertiary)]">
+        {/* Version Badge & Update Checker */}
+        <div className="flex items-center justify-between px-2 pt-1 border-t border-[var(--border-subtle)]">
+          <div className="flex items-center space-x-1.5">
+            <Shield className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
+            <span className="font-mono text-[11px] text-[var(--text-tertiary)]">v{version}</span>
+          </div>
+
           <button
             type="button"
             onClick={onCheckUpdate}
-            title="Проверить наличие обновлений"
-            className="flex items-center space-x-1.5 hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+            disabled={isCheckingUpdate}
+            className="flex items-center space-x-1 text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer disabled:opacity-50"
+            title="Проверить наличие обновлений на GitHub"
           >
-            {isCheckingUpdate ? (
-              <RefreshCw className="w-3 h-3 animate-spin text-[var(--accent-primary)]" />
-            ) : hasUpdate ? (
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block animate-pulse" />
-            ) : (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-            )}
-            <span className="font-mono text-[10px]">v{version}</span>
-            {hasUpdate && (
-              <span className="text-[9px] font-bold text-amber-400 ml-1">UP</span>
-            )}
+            <RefreshCw className={`w-3 h-3 ${isCheckingUpdate ? 'animate-spin text-[var(--accent-primary)]' : ''}`} />
+            <span>{isCheckingUpdate ? 'Проверка...' : hasUpdate ? 'Есть обновление' : 'Обновления'}</span>
           </button>
-
-          <span className="font-mono text-[9px] text-[var(--text-tertiary)]">
-            WIN32-X64
-          </span>
         </div>
       </div>
     </aside>

@@ -163,6 +163,34 @@ export const App: React.FC = () => {
     if (folderPath) handleItemPath(folderPath);
   };
 
+  const handleOpenEncryptedFolder = async () => {
+    const folderPath = await window.electronAPI.selectFolder();
+    if (!folderPath) return;
+
+    const info = await window.electronAPI.getItemInfo(folderPath);
+    if (!info) return;
+
+    if (info.isLockedFolder) {
+      setUnlockRequest({
+        filePath: info.path,
+        fileName: info.name,
+        type: 'folder',
+        size: info.size,
+        hint: info.hint,
+        isLockedFolder: true,
+      });
+      setSelectedItemForEncrypt(null);
+      setNotEncryptedNotice(null);
+    } else {
+      setNotEncryptedNotice({
+        name: info.name,
+        path: info.path,
+        type: 'folder',
+      });
+    }
+  };
+
+
   const handleItemPath = async (targetPath: string) => {
     const info = await window.electronAPI.getItemInfo(targetPath);
     if (!info) return;
@@ -325,6 +353,7 @@ export const App: React.FC = () => {
           onOpenSettings={() => setIsSettingsOpen(true)}
           onSelectFolder={handleSelectFolder}
           onSelectFile={() => handleSelectFile(false)}
+          onOpenEncryptedFolder={handleOpenEncryptedFolder}
           version={appVersion}
           onCheckUpdate={handleManualUpdateCheck}
           hasUpdate={!!(updateInfo?.available || updateInfo?.hasUpdate)}
@@ -338,6 +367,7 @@ export const App: React.FC = () => {
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}
             onOpenArchive={() => handleSelectFile(true)}
+            onOpenEncryptedFolder={handleOpenEncryptedFolder}
             onClearHistory={handleClearHistory}
             totalCount={vaultHistory.length}
           />
