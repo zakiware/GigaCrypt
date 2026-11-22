@@ -32,6 +32,108 @@ interface TempViewSession {
   openedAt: number;
 }
 const activeTempViews = new Map<string, TempViewSession>();
+const pendingTempCleanups = new Set<string>();
+
+function closeExplorerWindowsForPath(targetDir: string): Promise<void> {
+  if (process.platform !== 'win32') return Promise.resolve();
+  return new Promise((resolve) => {
+    try {
+      const normalized = path.resolve(targetDir).toLowerCase().replace(/'/g, "''");
+      const psScript = `
+        try {
+          $shell = New-Object -ComObject Shell.Application
+          foreach ($win in @($shell.Windows())) {
+            try {
+              if ($win.LocationURL) {
+                $localPath = ([uri]$win.LocationURL).LocalPath.ToLower().TrimEnd('\\')
+                if ($localPath -eq '${normalized}' -or $localPath.StartsWith('${normalized}\\')) {
+                  $win.Quit()
+                }
+              }
+            } catch {}
+          }
+        } catch {}
+      `;
+      const { spawn } = require('child_process');
+      const proc = spawn(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', psScript],
+        { windowsHide: true, stdio: 'ignore' }
+      );
+      const timer = setTimeout(() => resolve(), 1500);
+      proc.on('close', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      proc.on('error', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    } catch {
+      resolve();
+    }
+  });
+}
+
+async function unlockPermissionsRecursive(targetPath: string): Promise<void> {
+  try {
+    if (!fs.existsSync(targetPath)) return;
+    await fs.promises.chmod(targetPath, 0o666).catch(() => {});
+    const stat = await fs.promises.stat(targetPath);
+    if (stat.isDirectory()) {
+      const entries = await fs.promises.readdir(targetPath);
+      for (const entry of entries) {
+        await unlockPermissionsRecursive(path.join(targetPath, entry));
+      }
+    }
+  } catch {}
+}
+
+async function forceDeleteTempDir(tempDir: string, closeExplorer: boolean = true): Promise<boolean> {
+  if (!tempDir || !fs.existsSync(tempDir)) {
+    pendingTempCleanups.delete(tempDir);
+    return true;
+  }
+
+  if (closeExplorer) {
+    await closeExplorerWindowsForPath(tempDir);
+    await new Promise((r) => setTimeout(r, 120));
+  }
+
+  await unlockPermissionsRecursive(tempDir);
+
+  try {
+    await fs.promises.rm(tempDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 15,
+      retryDelay: 150,
+    });
+  } catch {}
+
+  if (!fs.existsSync(tempDir)) {
+    pendingTempCleanups.delete(tempDir);
+    return true;
+  }
+
+  pendingTempCleanups.add(tempDir);
+  return false;
+}
+
+async function sweepOrphanedTempViews(): Promise<void> {
+  try {
+    const tempRoot = app.getPath('temp');
+    const entries = await fs.promises.readdir(tempRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.startsWith('GigaCrypt_View_')) {
+        const fullPath = path.join(tempRoot, entry.name);
+        if (!activeTempViews.has(fullPath)) {
+          await forceDeleteTempDir(fullPath, false);
+        }
+      }
+    }
+  } catch {}
+}
 
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'gigacrypt_settings.json');
 const VAULT_FILE = path.join(app.getPath('userData'), 'gigacrypt_vault.json');
@@ -457,16 +559,17 @@ async function relockFolderSession(folderPath: string): Promise<boolean> {
 }
 
 async function closeTempViewSession(tempDir: string): Promise<boolean> {
-  const session = activeTempViews.get(tempDir);
-  if (!session) return false;
+  if (!tempDir) return false;
 
   // 1. Instantly unregister and notify the UI so the row vanishes with 0ms perceived lag
-  activeTempViews.delete(tempDir);
-  notifySessionsChanged();
+  if (activeTempViews.has(tempDir)) {
+    activeTempViews.delete(tempDir);
+    notifySessionsChanged();
+  }
 
-  // 2. Perform fast non-blocking background cleanup of the temporary sandbox directory
+  // 2. Close any Explorer window pointing to tempDir and completely remove tempDir from disk
   try {
-    await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    await forceDeleteTempDir(tempDir, true);
     return true;
   } catch (err) {
     console.error('Failed to close temp view directory:', err);
@@ -481,9 +584,13 @@ async function relockAllSessions() {
   for (const tempDir of Array.from(activeTempViews.keys())) {
     await closeTempViewSession(tempDir);
   }
+  for (const pendingDir of Array.from(pendingTempCleanups)) {
+    await forceDeleteTempDir(pendingDir, true);
+  }
+  await sweepOrphanedTempViews();
 }
 
-// Auto-relock check interval (every 30 seconds)
+// Auto-relock & temp directory cleanup check interval (every 10 seconds)
 setInterval(async () => {
   const timeoutMs = (currentSettings.autoRelockMinutes || 10) * 60 * 1000;
   const now = Date.now();
@@ -505,7 +612,12 @@ setInterval(async () => {
       await closeTempViewSession(tempDir);
     }
   }
-}, 30000);
+
+  // 3. Retry deleting any temp view directories that had locked file handles
+  for (const pendingDir of Array.from(pendingTempCleanups)) {
+    await forceDeleteTempDir(pendingDir, false);
+  }
+}, 10000);
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -601,6 +713,9 @@ app.whenReady().then(async () => {
   setupTray();
   createWindow();
 
+  // Clean up any leftover temporary sandbox folders from previous runs
+  sweepOrphanedTempViews().catch(() => {});
+
   try {
     await WindowsRegistry.registerFileAssociation();
     if (currentSettings.explorerContextMenu) {
@@ -643,7 +758,10 @@ app.whenReady().then(async () => {
 let isCleanupComplete = false;
 app.on('before-quit', (event) => {
   isQuitting = true;
-  if (!isCleanupComplete && (activeUnlockedSessions.size > 0 || activeTempViews.size > 0)) {
+  if (
+    !isCleanupComplete &&
+    (activeUnlockedSessions.size > 0 || activeTempViews.size > 0 || pendingTempCleanups.size > 0)
+  ) {
     event.preventDefault();
     relockAllSessions().finally(() => {
       isCleanupComplete = true;
@@ -783,17 +901,23 @@ ipcMain.handle('decrypt-item', async (_event, options: DecryptOptions) => {
 
       let openTarget = tempDir;
 
-      if (isFolder) {
-        await CryptoEngine.tempViewFolder(cleanPath, options.password, tempDir, {
-          onProgress: (p) => mainWindow?.webContents.send('operation-progress', p),
-        });
-      } else {
-        const res = await CryptoEngine.decrypt(cleanPath, options.password, {
-          destinationDir: tempDir,
-          keepOriginal: true,
-          onProgress: (p) => mainWindow?.webContents.send('operation-progress', p),
-        });
-        if (res.outputPath) openTarget = res.outputPath;
+      try {
+        if (isFolder) {
+          const res = await CryptoEngine.tempViewFolder(cleanPath, options.password, tempDir, {
+            onProgress: (p) => mainWindow?.webContents.send('operation-progress', p),
+          });
+          if (res.outputPath) openTarget = res.outputPath;
+        } else {
+          const res = await CryptoEngine.decrypt(cleanPath, options.password, {
+            destinationDir: tempDir,
+            keepOriginal: true,
+            onProgress: (p) => mainWindow?.webContents.send('operation-progress', p),
+          });
+          if (res.outputPath) openTarget = res.outputPath;
+        }
+      } catch (err) {
+        await forceDeleteTempDir(tempDir, false);
+        throw err;
       }
 
       activeTempViews.set(tempDir, {

@@ -373,10 +373,17 @@ export class CryptoEngine {
       throw new Error('Файл защищенного хранилища (.gigavault) не найден');
     }
 
-    await fs.promises.mkdir(tempDestDir, { recursive: true });
-    await this.decryptStreamArchive(vaultPath, password, tempDestDir, options.onProgress);
+    if (path.resolve(tempDestDir).toLowerCase() === path.resolve(rawPath).toLowerCase()) {
+      throw new Error('Временная папка не может совпадать с исходной защищённой папкой');
+    }
 
-    return { outputPath: tempDestDir };
+    const baseName = path.basename(rawPath);
+    const sandboxSubdir = path.join(tempDestDir, `${baseName} (Временный просмотр)`);
+
+    await fs.promises.mkdir(sandboxSubdir, { recursive: true });
+    await this.decryptStreamArchive(vaultPath, password, sandboxSubdir, options.onProgress);
+
+    return { outputPath: sandboxSubdir };
   }
 
   private static async decryptStreamArchive(

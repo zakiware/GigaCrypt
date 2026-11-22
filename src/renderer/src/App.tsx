@@ -416,13 +416,26 @@ export const App: React.FC = () => {
                 </span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setCurrentFilter('temp')}
-                className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-medium cursor-pointer"
-              >
-                Перейти к сессиям
-              </button>
+              <div className="flex items-center space-x-1.5">
+                {tempViews.map((v) => (
+                  <button
+                    key={v.tempDir}
+                    type="button"
+                    onClick={() => handleCloseTempView(v.tempDir)}
+                    className="px-2.5 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-medium border border-red-500/30 flex items-center space-x-1 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                    <span>Завершить ({v.name})</span>
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setCurrentFilter('temp')}
+                  className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-medium cursor-pointer"
+                >
+                  Перейти к сессиям
+                </button>
+              </div>
             </div>
           )}
 
@@ -456,8 +469,11 @@ export const App: React.FC = () => {
           request={unlockRequest}
           isOpen={true}
           onClose={() => setUnlockRequest(null)}
-          onSuccess={() => {
+          onSuccess={(isTempView) => {
             loadInitialData();
+            if (isTempView) {
+              setCurrentFilter('temp');
+            }
             setUnlockRequest(null);
           }}
         />

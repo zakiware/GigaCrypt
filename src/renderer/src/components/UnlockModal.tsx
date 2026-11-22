@@ -18,7 +18,7 @@ interface UnlockModalProps {
   request: UnlockRequest | null;
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (isTempView?: boolean) => void;
 }
 
 export const UnlockModal: React.FC<UnlockModalProps> = ({
@@ -30,16 +30,21 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isTempViewAction, setIsTempViewAction] = useState(false);
+  const [preferTempView, setPreferTempView] = useState(false);
   const [isDone, setIsDone] = useState(false);
   const [progress, setProgress] = useState<ProgressUpdate | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isShaking, setIsShaking] = useState(false);
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setPassword('');
       setError(null);
       setIsProcessing(false);
+      setIsTempViewAction(false);
+      setPreferTempView(false);
       setIsDone(false);
       setProgress(null);
       setIsShaking(false);
@@ -66,12 +71,19 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
 
   const handleUnlock = async (tempView: boolean = false) => {
     if (!password) {
-      setError('Введите пароль для расшифровки');
+      if (tempView) {
+        setPreferTempView(true);
+        setError('Введите пароль для открытия во временном просмотре');
+      } else {
+        setError('Введите пароль для расшифровки');
+      }
       triggerShake();
+      inputRef.current?.focus();
       return;
     }
 
     setError(null);
+    setIsTempViewAction(tempView);
     setIsProcessing(true);
 
     try {
@@ -84,7 +96,7 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
       if (result.success) {
         setIsDone(true);
         setTimeout(() => {
-          onSuccess();
+          onSuccess(tempView);
           onClose();
         }, 500);
       } else {
@@ -106,7 +118,7 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleUnlock(false);
+      handleUnlock(preferTempView);
     }
   };
 
@@ -193,17 +205,32 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
           {isDone ? (
             <div className="py-8 flex flex-col items-center justify-center text-center space-y-2">
               <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-              <h4 className="font-semibold text-xs text-[var(--text-main)]">Пароль подтверждён</h4>
-              <p className="text-[11px] text-[var(--text-muted)]">Доступ к данным открыт</p>
+              <h4 className="font-semibold text-xs text-[var(--text-main)]">
+                {isTempViewAction ? 'Временная папка открыта' : 'Пароль подтверждён'}
+              </h4>
+              <p className="text-[11px] text-[var(--text-muted)]">
+                {isTempViewAction
+                  ? 'Создана изолированная песочница в %TEMP%. Оригинал защищён.'
+                  : 'Доступ к данным открыт'}
+              </p>
             </div>
           ) : !isProcessing ? (
             <div className="space-y-3.5">
               <div>
-                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
-                  Пароль
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-[var(--text-secondary)]">
+                    Пароль
+                  </label>
+                  {preferTempView && (
+                    <span className="text-[10px] font-medium text-amber-400 flex items-center space-x-1">
+                      <Eye className="w-3 h-3" />
+                      <span>Режим: Временный просмотр</span>
+                    </span>
+                  )}
+                </div>
                 <div className="relative">
                   <input
+                    ref={inputRef}
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -235,8 +262,12 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleUnlock(true)}
-                  className="px-3 py-1.5 rounded-lg secondary-btn text-xs font-medium flex items-center space-x-1.5 cursor-pointer"
-                  title="Открыть во временной изолированной песочнице без расшифровки оригинала"
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1.5 cursor-pointer transition-all ${
+                    preferTempView
+                      ? 'bg-amber-500/20 border border-amber-500/50 text-amber-300'
+                      : 'fluent-btn-secondary hover:border-amber-500/40'
+                  }`}
+                  title="Открыть во временной изолированной папке (%TEMP%) без расшифровки оригинала"
                 >
                   <Eye className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
                   <span>Временный просмотр</span>
@@ -252,8 +283,11 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleUnlock(false)}
-                    className="px-4 py-1.5 rounded-lg primary-btn text-xs font-semibold flex items-center space-x-1.5 cursor-pointer shadow-sm"
+                    onClick={() => {
+                      setPreferTempView(false);
+                      handleUnlock(false);
+                    }}
+                    className="px-4 py-1.5 rounded-lg fluent-btn-primary text-xs font-semibold flex items-center space-x-1.5 cursor-pointer shadow-sm"
                   >
                     <span>Расшифровать</span>
                   </button>
@@ -265,7 +299,11 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
             <div className="py-8 flex flex-col items-center justify-center text-center space-y-3">
               <Loader2 className="w-6 h-6 animate-spin text-[var(--accent-primary)]" />
               <div>
-                <h4 className="font-semibold text-xs text-[var(--text-main)]">Расшифровка и проверка подлинности...</h4>
+                <h4 className="font-semibold text-xs text-[var(--text-main)]">
+                  {isTempViewAction
+                    ? 'Создание изолированной временной папки (%TEMP%)...'
+                    : 'Расшифровка и проверка подлинности...'}
+                </h4>
                 <p className="text-[11px] text-[var(--text-muted)] mt-0.5 font-mono">
                   {progress?.message || 'Пожалуйста, подождите...'}
                 </p>
