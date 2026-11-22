@@ -44,7 +44,7 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
       setProgress(null);
       setIsShaking(false);
     }
-  }, [isOpen]);
+  }, [isOpen, request?.filePath]);
 
   useEffect(() => {
     if (!isOpen) return;

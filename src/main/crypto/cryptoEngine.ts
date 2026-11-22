@@ -1,11 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as zlib from 'zlib';
 import { ItemType, ProgressUpdate } from '../../types';
 
 const archiverPkg = require('archiver');
-const unzipperPkg = require('unzipper');
-const unzipper = (unzipperPkg.default || unzipperPkg);
 
 function createZipArchive(options: any = {}) {
   if (archiverPkg.ZipArchive) {
@@ -186,79 +185,88 @@ export class CryptoEngine {
     const metaTag = metaCipher.getAuthTag();
 
     // 3. Write Vault Header
-    const outStream = fs.createWriteStream(vaultPath);
+    const outStream = fs.createWriteStream(vaultPath, { highWaterMark: 1024 * 1024 });
     const metaLenBuf = Buffer.alloc(4);
     metaLenBuf.writeUInt32BE(encryptedMeta.length, 0);
 
-    outStream.write(MAGIC_HEADER);
-    outStream.write(salt);
-    outStream.write(metaIv);
-    outStream.write(metaTag);
-    outStream.write(metaLenBuf);
-    outStream.write(encryptedMeta);
-    outStream.write(payloadIv);
+    try {
+      outStream.write(MAGIC_HEADER);
+      outStream.write(salt);
+      outStream.write(metaIv);
+      outStream.write(metaTag);
+      outStream.write(metaLenBuf);
+      outStream.write(encryptedMeta);
+      outStream.write(payloadIv);
 
-    options.onProgress?.({
-      stage: 'encrypting',
-      percent: 25,
-      message: 'Шифрование данных AES-256-GCM...',
-    });
-
-    // 4. Stream folder contents
-    const payloadCipher = crypto.createCipheriv('aes-256-gcm', key, payloadIv);
-
-    await new Promise<void>((resolve, reject) => {
-      payloadCipher.pipe(outStream, { end: false });
-
-      // Fast streaming compression (level 1 for maximum speed and throughput)
-      const archive = createZipArchive({ zlib: { level: 1 } });
-      archive.on('error', reject);
-      payloadCipher.on('error', reject);
-
-      let lastReport = 0;
-      archive.on('progress', (data: any) => {
-        const now = Date.now();
-        if (now - lastReport > 60) {
-          lastReport = now;
-          const processed = (data && data.fs && data.fs.processedBytes) || 0;
-          const total = stats.size || 1;
-          const ratio = Math.min(1, Math.max(0, processed / total));
-          const pct = Math.min(85, Math.floor(25 + ratio * 60));
-          options.onProgress?.({
-            stage: 'encrypting',
-            percent: pct,
-            message: `Шифрование данных... ${pct}%`,
-          });
-        }
+      options.onProgress?.({
+        stage: 'encrypting',
+        percent: 25,
+        message: 'Шифрование данных AES-256-GCM...',
       });
 
-      archive.pipe(payloadCipher);
+      // 4. Stream folder contents
+      const payloadCipher = crypto.createCipheriv('aes-256-gcm', key, payloadIv);
 
-      const entries = fs.readdirSync(rawPath);
-      for (const entry of entries) {
-        if (entry === '.gigavault' || entry.toLowerCase() === 'desktop.ini') continue;
-        const fullEntry = path.join(rawPath, entry);
-        const entryStat = fs.statSync(fullEntry);
-        if (entryStat.isDirectory()) {
-          archive.directory(fullEntry, entry);
-        } else {
-          archive.file(fullEntry, { name: entry });
+      await new Promise<void>((resolve, reject) => {
+        outStream.on('error', reject);
+        payloadCipher.pipe(outStream, { end: false });
+
+        // Fast streaming compression (level 1 for maximum speed and throughput)
+        const archive = createZipArchive({ zlib: { level: 1 } });
+        archive.on('error', reject);
+        payloadCipher.on('error', reject);
+
+        let lastReport = 0;
+        archive.on('progress', (data: any) => {
+          const now = Date.now();
+          if (now - lastReport > 60) {
+            lastReport = now;
+            const processed = (data && data.fs && data.fs.processedBytes) || 0;
+            const total = stats.size || 1;
+            const ratio = Math.min(1, Math.max(0, processed / total));
+            const pct = Math.min(85, Math.floor(25 + ratio * 60));
+            options.onProgress?.({
+              stage: 'encrypting',
+              percent: pct,
+              message: `Шифрование данных... ${pct}%`,
+            });
+          }
+        });
+
+        archive.pipe(payloadCipher);
+
+        const entries = fs.readdirSync(rawPath);
+        for (const entry of entries) {
+          if (entry === '.gigavault' || entry.toLowerCase() === 'desktop.ini') continue;
+          const fullEntry = path.join(rawPath, entry);
+          const entryStat = fs.statSync(fullEntry);
+          if (entryStat.isDirectory()) {
+            archive.directory(fullEntry, entry);
+          } else {
+            archive.file(fullEntry, { name: entry });
+          }
         }
-      }
 
-      archive.finalize();
-      payloadCipher.on('end', () => resolve());
-    });
-
-    // 5. Append Auth Tag & Magic
-    const payloadTag = payloadCipher.getAuthTag();
-    await new Promise<void>((resolve, reject) => {
-      outStream.write(payloadTag);
-      outStream.write(MAGIC_FOOTER, (err) => {
-        if (err) return reject(err);
-        outStream.end(() => resolve());
+        archive.finalize();
+        payloadCipher.on('end', () => resolve());
       });
-    });
+
+      // 5. Append Auth Tag & Magic
+      const payloadTag = payloadCipher.getAuthTag();
+      await new Promise<void>((resolve, reject) => {
+        outStream.write(payloadTag);
+        outStream.write(MAGIC_FOOTER, (err) => {
+          if (err) return reject(err);
+          outStream.end(() => resolve());
+        });
+      });
+    } catch (err) {
+      try {
+        outStream.destroy();
+      } catch {}
+      await fs.promises.rm(vaultPath, { force: true }).catch(() => {});
+      throw err;
+    }
 
     // 6. Rapidly and cleanly remove original unencrypted files
     options.onProgress?.({
@@ -444,6 +452,7 @@ export class CryptoEngine {
     const inStream = fs.createReadStream(vaultPath, {
       start: payloadOffset,
       end: payloadOffset + payloadLength - 1,
+      highWaterMark: 1024 * 1024,
     });
 
     let bytesRead = 0;
@@ -463,44 +472,337 @@ export class CryptoEngine {
       }
     });
 
-    const extractor = unzipper.Extract({ path: destDir });
-
-    await new Promise<void>((resolve, reject) => {
-      let resolved = false;
-      const onDone = () => {
-        if (!resolved) {
-          resolved = true;
-          try {
-            inStream.destroy();
-          } catch {}
-          resolve();
-        }
-      };
-      const onError = (err: any) => {
-        if (!resolved) {
-          resolved = true;
-          try {
-            inStream.destroy();
-          } catch {}
-          reject(err);
-        }
-      };
-
-      inStream
-        .pipe(decipher)
-        .on('error', onError)
-        .pipe(extractor)
-        .on('close', onDone)
-        .on('finish', onDone)
-        .on('error', onError);
+    inStream.on('error', (err) => {
+      decipher.destroy(err);
     });
 
+    const cipherStream = inStream.pipe(decipher);
+
     try {
-      inStream.destroy();
-    } catch {}
+      await this.extractZipStream(cipherStream, destDir);
+    } finally {
+      try {
+        inStream.destroy();
+      } catch {}
+    }
 
     // Brief pause to allow OS file handles to be released on Windows
     await new Promise((r) => setTimeout(r, 50));
+  }
+
+  /**
+   * Native streaming ZIP extractor that uses zlib's exact Z_STREAM_END boundary
+   * instead of scanning compressed bytes for 0x08074b50 (which causes false
+   * "unexpected end of file" collisions on large archives in unzipper).
+   * Supports both standard ZIP and ZIP64 entries (> 4 GB).
+   */
+  private static async extractZipStream(
+    cipherStream: NodeJS.ReadableStream,
+    destDir: string
+  ): Promise<void> {
+    const resolvedDestRoot = path.resolve(destDir);
+    await fs.promises.mkdir(resolvedDestRoot, { recursive: true });
+
+    const iterator = (cipherStream as any)[Symbol.asyncIterator]();
+    let stash = Buffer.alloc(0);
+    let eofReached = false;
+
+    const pullChunk = async (): Promise<Buffer | null> => {
+      if (stash.length > 0) {
+        const c = stash;
+        stash = Buffer.alloc(0);
+        return c;
+      }
+      if (eofReached) return null;
+      const { value, done } = await iterator.next();
+      if (done) {
+        eofReached = true;
+        return null;
+      }
+      return value as Buffer;
+    };
+
+    const unshiftChunk = (buf: Buffer) => {
+      if (!buf || buf.length === 0) return;
+      stash = stash.length > 0 ? Buffer.concat([buf, stash]) : buf;
+    };
+
+    const readExact = async (n: number): Promise<Buffer> => {
+      if (n <= 0) return Buffer.alloc(0);
+      const chunks: Buffer[] = [];
+      let total = 0;
+      while (total < n) {
+        const c = await pullChunk();
+        if (!c) {
+          throw new Error(`Поток архива неожиданно прерван (ожидалось ${n} байт, получено ${total})`);
+        }
+        const need = n - total;
+        if (c.length <= need) {
+          chunks.push(c);
+          total += c.length;
+        } else {
+          chunks.push(c.subarray(0, need));
+          unshiftChunk(c.subarray(need));
+          total += need;
+        }
+      }
+      return chunks.length === 1 ? chunks[0] : Buffer.concat(chunks, n);
+    };
+
+    const pipeExactBytes = async (n: number, outStream: fs.WriteStream): Promise<void> => {
+      let remaining = n;
+      while (remaining > 0) {
+        const c = await pullChunk();
+        if (!c) {
+          throw new Error('Поток архива неожиданно прерван при чтении файла');
+        }
+        const slice = c.length <= remaining ? c : c.subarray(0, remaining);
+        if (c.length > remaining) {
+          unshiftChunk(c.subarray(remaining));
+        }
+        remaining -= slice.length;
+        if (!outStream.write(slice)) {
+          await new Promise<void>((res, rej) => {
+            const onDrain = () => {
+              outStream.removeListener('error', onErr);
+              res();
+            };
+            const onErr = (err: Error) => {
+              outStream.removeListener('drain', onDrain);
+              rej(err);
+            };
+            outStream.once('drain', onDrain);
+            outStream.once('error', onErr);
+          });
+        }
+      }
+    };
+
+    while (true) {
+      const sigBuf = await readExact(4);
+      const sig = sigBuf.readUInt32LE(0);
+
+      // Reached Central Directory (0x02014b50) or End of Central Directory (0x06054b50 / 0x06064b50)
+      if (sig === 0x02014b50 || sig === 0x06054b50 || sig === 0x06064b50) {
+        // Drain all remaining Central Directory bytes so AES-256-GCM verifies the final Auth Tag
+        while (await pullChunk()) {}
+        break;
+      }
+
+      if (sig !== 0x04034b50) {
+        throw new Error(`Повреждена структура архива (сигнатура 0x${sig.toString(16)})`);
+      }
+
+      const lfh = await readExact(26);
+      const flags = lfh.readUInt16LE(2);
+      const method = lfh.readUInt16LE(4);
+      let compressedSize = lfh.readUInt32LE(14);
+      let uncompressedSize = lfh.readUInt32LE(18);
+      const nameLen = lfh.readUInt16LE(22);
+      const extraLen = lfh.readUInt16LE(24);
+
+      const nameBuf = await readExact(nameLen);
+      const rawEntryName = nameBuf.toString('utf8');
+      const extraBuf = extraLen > 0 ? await readExact(extraLen) : Buffer.alloc(0);
+
+      // Parse ZIP64 extra field (header ID 0x0001) if present in Local File Header
+      let isEntryZip64FromExtra = false;
+      if (extraBuf.length >= 4) {
+        let pos = 0;
+        while (pos + 4 <= extraBuf.length) {
+          const headerId = extraBuf.readUInt16LE(pos);
+          const dataSize = extraBuf.readUInt16LE(pos + 2);
+          if (headerId === 0x0001) {
+            isEntryZip64FromExtra = true;
+            let fieldPos = pos + 4;
+            if (uncompressedSize === 0xffffffff && fieldPos + 8 <= pos + 4 + dataSize) {
+              uncompressedSize = Number(extraBuf.readBigUInt64LE(fieldPos));
+              fieldPos += 8;
+            }
+            if (compressedSize === 0xffffffff && fieldPos + 8 <= pos + 4 + dataSize) {
+              compressedSize = Number(extraBuf.readBigUInt64LE(fieldPos));
+            }
+            break;
+          }
+          pos += 4 + dataSize;
+        }
+      }
+
+      const hasDataDescriptor = (flags & 0x08) !== 0;
+      const isDir = rawEntryName.endsWith('/') || rawEntryName.endsWith('\\');
+
+      // Sanitize relative path & prevent Zip Slip traversal
+      const cleanRel = rawEntryName.replace(/^[/\\]+/, '');
+      const fullDestPath = path.resolve(resolvedDestRoot, cleanRel);
+      if (
+        fullDestPath !== resolvedDestRoot &&
+        !fullDestPath.startsWith(resolvedDestRoot + path.sep)
+      ) {
+        throw new Error(`Недопустимый путь внутри архива: ${rawEntryName}`);
+      }
+
+      if (isDir) {
+        await fs.promises.mkdir(fullDestPath, { recursive: true });
+        if (method === 0 && compressedSize > 0) {
+          await readExact(compressedSize);
+        } else if (method === 8) {
+          // Rare case: directory entry with empty deflate stream
+          const inflater = zlib.createInflateRaw();
+          inflater.resume();
+          let ended = false;
+          inflater.once('end', () => {
+            ended = true;
+          });
+          let fed = 0;
+          while (!ended && !(inflater as any)._readableState?.ended) {
+            const chunk = await pullChunk();
+            if (!chunk) {
+              inflater.end();
+              break;
+            }
+            fed += chunk.length;
+            await new Promise<void>((res, rej) => {
+              inflater.write(chunk, (err) => (err && !ended ? rej(err) : res()));
+            });
+            if (ended || (inflater as any)._readableState?.ended) {
+              const leftover = fed - inflater.bytesWritten;
+              if (leftover > 0) {
+                unshiftChunk(chunk.subarray(chunk.length - leftover));
+              }
+              break;
+            }
+          }
+        }
+        if (hasDataDescriptor) {
+          const ddSigBuf = await readExact(4);
+          const ddSig = ddSigBuf.readUInt32LE(0);
+          if (ddSig === 0x08074b50) {
+            await readExact(isEntryZip64FromExtra ? 20 : 12);
+          } else {
+            await readExact(isEntryZip64FromExtra ? 16 : 8);
+          }
+        }
+        continue;
+      }
+
+      // Ensure parent directory exists
+      await fs.promises.mkdir(path.dirname(fullDestPath), { recursive: true });
+      if (fs.existsSync(fullDestPath)) {
+        await fs.promises.chmod(fullDestPath, 0o666).catch(() => {});
+      }
+
+      if (method === 0) {
+        const fileOut = fs.createWriteStream(fullDestPath, { highWaterMark: 256 * 1024 });
+        try {
+          if (compressedSize > 0) {
+            await pipeExactBytes(compressedSize, fileOut);
+          }
+          await new Promise<void>((res, rej) => {
+            fileOut.end((err?: Error | null) => (err ? rej(err) : res()));
+          });
+        } catch (err) {
+          try {
+            fileOut.destroy();
+          } catch {}
+          throw err;
+        }
+
+        if (hasDataDescriptor) {
+          const ddSigBuf = await readExact(4);
+          const ddSig = ddSigBuf.readUInt32LE(0);
+          const isZip64 = isEntryZip64FromExtra || compressedSize > 0xffffffff || uncompressedSize > 0xffffffff;
+          if (ddSig === 0x08074b50) {
+            await readExact(isZip64 ? 20 : 12);
+          } else {
+            await readExact(isZip64 ? 16 : 8);
+          }
+        }
+      } else if (method === 8) {
+        const inflater = zlib.createInflateRaw({ highWaterMark: 256 * 1024 });
+        const fileOut = fs.createWriteStream(fullDestPath, { highWaterMark: 256 * 1024 });
+
+        let entryUncompressed = 0;
+        inflater.on('data', (d: Buffer) => {
+          entryUncompressed += d.length;
+        });
+
+        let infEnded = false;
+        inflater.once('end', () => {
+          infEnded = true;
+        });
+
+        inflater.pipe(fileOut);
+
+        const streamFinishPromise = new Promise<void>((resolve, reject) => {
+          const onError = (err: Error) => {
+            try {
+              inflater.destroy();
+            } catch {}
+            try {
+              fileOut.destroy();
+            } catch {}
+            reject(err);
+          };
+          inflater.once('error', onError);
+          fileOut.once('error', onError);
+          fileOut.once('finish', () => resolve());
+        });
+
+        let fedBytes = 0;
+        try {
+          while (!infEnded && !(inflater as any)._readableState?.ended) {
+            const chunk = await pullChunk();
+            if (!chunk) {
+              inflater.end();
+              break;
+            }
+            fedBytes += chunk.length;
+            await new Promise<void>((res, rej) => {
+              inflater.write(chunk, (err) => {
+                if (err && !infEnded && !(inflater as any)._readableState?.ended) {
+                  return rej(err);
+                }
+                res();
+              });
+            });
+            if (infEnded || (inflater as any)._readableState?.ended) {
+              const consumed = inflater.bytesWritten;
+              const leftoverCount = fedBytes - consumed;
+              if (leftoverCount > 0) {
+                unshiftChunk(chunk.subarray(chunk.length - leftoverCount));
+              }
+              break;
+            }
+          }
+
+          await streamFinishPromise;
+        } catch (err) {
+          try {
+            inflater.destroy();
+          } catch {}
+          try {
+            fileOut.destroy();
+          } catch {}
+          throw err;
+        }
+
+        if (hasDataDescriptor) {
+          const ddSigBuf = await readExact(4);
+          const ddSig = ddSigBuf.readUInt32LE(0);
+          const isZip64 =
+            isEntryZip64FromExtra ||
+            inflater.bytesWritten > 0xffffffff ||
+            entryUncompressed > 0xffffffff;
+          if (ddSig === 0x08074b50) {
+            await readExact(isZip64 ? 20 : 12);
+          } else {
+            await readExact(isZip64 ? 16 : 8);
+          }
+        }
+      } else {
+        throw new Error(`Неподдерживаемый метод сжатия ZIP: ${method}`);
+      }
+    }
   }
 
   /**
@@ -558,61 +860,70 @@ export class CryptoEngine {
     ]);
     const metaTag = metaCipher.getAuthTag();
 
-    const outStream = fs.createWriteStream(outputPath);
+    const outStream = fs.createWriteStream(outputPath, { highWaterMark: 1024 * 1024 });
     const metaLenBuf = Buffer.alloc(4);
     metaLenBuf.writeUInt32BE(encryptedMeta.length, 0);
 
-    outStream.write(MAGIC_HEADER);
-    outStream.write(salt);
-    outStream.write(metaIv);
-    outStream.write(metaTag);
-    outStream.write(metaLenBuf);
-    outStream.write(encryptedMeta);
-    outStream.write(payloadIv);
+    try {
+      outStream.write(MAGIC_HEADER);
+      outStream.write(salt);
+      outStream.write(metaIv);
+      outStream.write(metaTag);
+      outStream.write(metaLenBuf);
+      outStream.write(encryptedMeta);
+      outStream.write(payloadIv);
 
-    options.onProgress?.({
-      stage: 'encrypting',
-      percent: 25,
-      message: 'Шифрование AES-256-GCM...',
-    });
-
-    const payloadCipher = crypto.createCipheriv('aes-256-gcm', key, payloadIv);
-
-    await new Promise<void>((resolve, reject) => {
-      payloadCipher.pipe(outStream, { end: false });
-      const fileStream = fs.createReadStream(sourcePath);
-      fileStream.on('error', reject);
-      payloadCipher.on('error', reject);
-
-      let bytesRead = 0;
-      let lastReport = 0;
-      fileStream.on('data', (chunk: Buffer) => {
-        bytesRead += chunk.length;
-        const now = Date.now();
-        if (now - lastReport > 60) {
-          lastReport = now;
-          const ratio = Math.min(1, Math.max(0, bytesRead / (stats.size || 1)));
-          const pct = Math.min(90, Math.floor(25 + ratio * 65));
-          options.onProgress?.({
-            stage: 'encrypting',
-            percent: pct,
-            message: `Шифрование... ${pct}%`,
-          });
-        }
+      options.onProgress?.({
+        stage: 'encrypting',
+        percent: 25,
+        message: 'Шифрование AES-256-GCM...',
       });
 
-      fileStream.pipe(payloadCipher);
-      payloadCipher.on('end', () => resolve());
-    });
+      const payloadCipher = crypto.createCipheriv('aes-256-gcm', key, payloadIv);
 
-    const payloadTag = payloadCipher.getAuthTag();
-    await new Promise<void>((resolve, reject) => {
-      outStream.write(payloadTag);
-      outStream.write(MAGIC_FOOTER, (err) => {
-        if (err) return reject(err);
-        outStream.end(() => resolve());
+      await new Promise<void>((resolve, reject) => {
+        outStream.on('error', reject);
+        payloadCipher.pipe(outStream, { end: false });
+        const fileStream = fs.createReadStream(sourcePath, { highWaterMark: 1024 * 1024 });
+        fileStream.on('error', reject);
+        payloadCipher.on('error', reject);
+
+        let bytesRead = 0;
+        let lastReport = 0;
+        fileStream.on('data', (chunk: Buffer) => {
+          bytesRead += chunk.length;
+          const now = Date.now();
+          if (now - lastReport > 60) {
+            lastReport = now;
+            const ratio = Math.min(1, Math.max(0, bytesRead / (stats.size || 1)));
+            const pct = Math.min(90, Math.floor(25 + ratio * 65));
+            options.onProgress?.({
+              stage: 'encrypting',
+              percent: pct,
+              message: `Шифрование... ${pct}%`,
+            });
+          }
+        });
+
+        fileStream.pipe(payloadCipher);
+        payloadCipher.on('end', () => resolve());
       });
-    });
+
+      const payloadTag = payloadCipher.getAuthTag();
+      await new Promise<void>((resolve, reject) => {
+        outStream.write(payloadTag);
+        outStream.write(MAGIC_FOOTER, (err) => {
+          if (err) return reject(err);
+          outStream.end(() => resolve());
+        });
+      });
+    } catch (err) {
+      try {
+        outStream.destroy();
+      } catch {}
+      await fs.promises.rm(outputPath, { force: true }).catch(() => {});
+      throw err;
+    }
 
     if (options.wipeOriginal !== false) {
       options.onProgress?.({
@@ -721,8 +1032,9 @@ export class CryptoEngine {
       const inStream = fs.createReadStream(targetPath, {
         start: payloadOffset,
         end: payloadOffset + payloadLength - 1,
+        highWaterMark: 1024 * 1024,
       });
-      const outStream = fs.createWriteStream(outputPath);
+      const outStream = fs.createWriteStream(outputPath, { highWaterMark: 1024 * 1024 });
 
       let bytesRead = 0;
       let lastReport = 0;
@@ -741,14 +1053,32 @@ export class CryptoEngine {
         }
       });
 
-      await new Promise<void>((resolve, reject) => {
-        inStream
-          .pipe(decipher)
-          .on('error', reject)
-          .pipe(outStream)
-          .on('finish', () => resolve())
-          .on('error', reject);
-      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const onError = (err: Error) => {
+            try {
+              inStream.destroy();
+            } catch {}
+            try {
+              decipher.destroy();
+            } catch {}
+            try {
+              outStream.destroy();
+            } catch {}
+            reject(err);
+          };
+
+          inStream.once('error', onError);
+          decipher.once('error', onError);
+          outStream.once('error', onError);
+          outStream.once('finish', () => resolve());
+
+          inStream.pipe(decipher).pipe(outStream);
+        });
+      } catch (err) {
+        await fs.promises.rm(outputPath, { force: true }).catch(() => {});
+        throw err;
+      }
     }
 
     if (!options.keepOriginal) {

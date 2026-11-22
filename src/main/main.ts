@@ -1,11 +1,12 @@
 import { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell, nativeTheme, powerMonitor, screen, type NativeImage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { CryptoEngine } from './crypto/cryptoEngine';
 import { WindowsRegistry } from './windows/registry';
 import { AppSettings, CryptoItem, DecryptOptions, EncryptOptions, ItemInfo, NotEncryptedNotice, TempViewInfo, UnlockRequest, UpdateInfo } from '../types';
 
-const CURRENT_VERSION = '1.0.1';
+const CURRENT_VERSION = '1.0.2';
 const GITHUB_REPO = 'zakiware/GigaCrypt';
 
 // Ensure autoplay with audio works for intro.mp4 video splash screen
@@ -71,7 +72,15 @@ function loadVault(): CryptoItem[] {
   try {
     if (fs.existsSync(VAULT_FILE)) {
       const data = fs.readFileSync(VAULT_FILE, 'utf-8');
-      return JSON.parse(data);
+      const parsed: CryptoItem[] = JSON.parse(data);
+      return parsed.map((item, idx) => ({
+        ...item,
+        id: crypto
+          .createHash('sha256')
+          .update(item.targetPath || item.originalPath || `${idx}`)
+          .digest('hex')
+          .substring(0, 16),
+      }));
     }
   } catch (err) {
     console.error('Failed to load vault history:', err);
@@ -631,10 +640,16 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on('before-quit', async () => {
+let isCleanupComplete = false;
+app.on('before-quit', (event) => {
   isQuitting = true;
-  // Automatically re-lock all open folders and close temp views before quitting!
-  await relockAllSessions();
+  if (!isCleanupComplete && (activeUnlockedSessions.size > 0 || activeTempViews.size > 0)) {
+    event.preventDefault();
+    relockAllSessions().finally(() => {
+      isCleanupComplete = true;
+      app.quit();
+    });
+  }
 });
 
 // IPC Handlers
@@ -649,18 +664,24 @@ ipcMain.handle('get-item-info', async (_event, targetPath: string): Promise<Item
     const stat = await fs.promises.stat(clean);
     const isFolder = stat.isDirectory();
     const isGcrypt = path.extname(clean).toLowerCase() === '.gcrypt';
-    const hasVaultInside = isFolder && fs.existsSync(path.join(clean, '.gigavault'));
+    const vaultFilePath = path.join(clean, '.gigavault');
+    const hasVaultInside = isFolder && fs.existsSync(vaultFilePath);
     const isLockedFolder = hasVaultInside;
 
     const stats = await CryptoEngine.calculateItemStats(clean);
+    let itemSize = stats.size;
     let hint: string | undefined = undefined;
 
     if (isGcrypt) {
       const peek = await CryptoEngine.peekMetadata(clean);
       hint = peek.metadata?.hint;
     } else if (hasVaultInside) {
-      const peek = await CryptoEngine.peekMetadata(path.join(clean, '.gigavault'));
+      const peek = await CryptoEngine.peekMetadata(vaultFilePath);
       hint = peek.metadata?.hint;
+      try {
+        const vaultStat = await fs.promises.stat(vaultFilePath);
+        itemSize = vaultStat.size;
+      } catch {}
     }
 
     if (!hint) {
@@ -675,7 +696,7 @@ ipcMain.handle('get-item-info', async (_event, targetPath: string): Promise<Item
       name: cleanName,
       path: clean,
       type: stats.type,
-      size: stats.size,
+      size: itemSize,
       fileCount: stats.count,
       isGcrypt,
       isLockedFolder,
@@ -725,7 +746,7 @@ ipcMain.handle('encrypt-item', async (_event, options: EncryptOptions) => {
     } catch {}
 
     const item: CryptoItem = {
-      id: Buffer.from(result.outputPath).toString('base64').substring(0, 16),
+      id: crypto.createHash('sha256').update(result.outputPath).digest('hex').substring(0, 16),
       name: cleanName,
       originalPath: cleanPath,
       targetPath: result.outputPath,

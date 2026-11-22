@@ -204,7 +204,7 @@ export const VaultLedger: React.FC<VaultLedgerProps> = ({
 
               return (
                 <div
-                  key={item.id}
+                  key={item.targetPath || item.id}
                   onDoubleClick={() => onUnlockItem(item)}
                   className={`ledger-row px-4 py-2.5 flex items-center text-xs group cursor-pointer ${
                     isSessionActive ? 'bg-emerald-500/10' : ''

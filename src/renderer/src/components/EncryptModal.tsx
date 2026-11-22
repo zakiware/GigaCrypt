@@ -47,7 +47,7 @@ export const EncryptModal: React.FC<EncryptModalProps> = ({
       setProgress(null);
       setError(null);
     }
-  }, [isOpen]);
+  }, [isOpen, item?.path]);
 
   useEffect(() => {
     if (!isOpen) return;
